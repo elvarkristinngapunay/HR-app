@@ -68,7 +68,6 @@ function seed() {
 function migrate(s) {
   s.departments = s.departments || [];
   s.employees = s.employees || [];
-  // Convert legacy `department` string on employees to department_id
   s.employees.forEach(emp => {
     if (!('department_id' in emp)) emp.department_id = null;
     if (emp.department && !emp.department_id) {
@@ -84,8 +83,17 @@ function migrate(s) {
       emp.department_id = dept.id;
     }
     delete emp.department;
+    delete emp.address;
+    emp.birthdate = isoToDmy(emp.birthdate);
+    emp.start_date = isoToDmy(emp.start_date);
   });
   return s;
+}
+
+function isoToDmy(v) {
+  if (!v) return v || '';
+  const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : v;
 }
 
 function demo(id, name, role, manager_id, extra = {}) {
@@ -100,7 +108,6 @@ function demo(id, name, role, manager_id, extra = {}) {
     birthdate: extra.birthdate || '',
     start_date: extra.start_date || '',
     location: extra.location || '',
-    address: extra.address || '',
     ssn: extra.ssn || '',
     avatar_color: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
     notes: [],
@@ -139,10 +146,32 @@ function initials(name) {
   const parts = name.trim().split(/\s+/).slice(0, 2);
   return parts.map(p => p[0]).join('').toUpperCase();
 }
+// Parse "dd.mm.yyyy" or "d.m.yyyy" or ISO "yyyy-mm-dd" → Date, or null
+function parseFlexibleDate(str) {
+  if (!str) return null;
+  str = str.trim();
+  // dd.mm.yyyy
+  let m = str.match(/^(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{2,4})$/);
+  if (m) {
+    let [_, d, mo, y] = m;
+    d = +d; mo = +mo; y = +y;
+    if (y < 100) y += y < 30 ? 2000 : 1900;
+    const dt = new Date(y, mo - 1, d);
+    if (dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d) return dt;
+    return null;
+  }
+  // ISO yyyy-mm-dd (legacy)
+  m = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) {
+    const dt = new Date(+m[1], +m[2] - 1, +m[3]);
+    if (!isNaN(dt)) return dt;
+  }
+  return null;
+}
+
 function ageFromBirthdate(bd) {
-  if (!bd) return '';
-  const d = new Date(bd);
-  if (isNaN(d)) return '';
+  const d = parseFlexibleDate(bd);
+  if (!d) return '';
   const now = new Date();
   let age = now.getFullYear() - d.getFullYear();
   const m = now.getMonth() - d.getMonth();
@@ -296,7 +325,6 @@ function openDrawer(id) {
   setVal('d-birthdate', emp.birthdate);
   setVal('d-start', emp.start_date);
   setVal('d-location', emp.location);
-  setVal('d-address', emp.address);
   setVal('d-ssn', emp.ssn);
   setVal('d-age', ageFromBirthdate(emp.birthdate));
 
@@ -405,6 +433,10 @@ function deleteNote(noteId) {
 // ---------- Add / delete employee ----------
 function addEmployee(managerId = null) {
   const managerDept = managerId ? findEmp(managerId)?.department_id : null;
+  const today = new Date();
+  const dd = String(today.getDate()).padStart(2, '0');
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const yyyy = today.getFullYear();
   const emp = {
     id: uid(),
     name: 'Nýr starfsmaður',
@@ -414,9 +446,8 @@ function addEmployee(managerId = null) {
     phone: '',
     email: '',
     birthdate: '',
-    start_date: new Date().toISOString().slice(0, 10),
+    start_date: `${dd}.${mm}.${yyyy}`,
     location: '',
-    address: '',
     ssn: '',
     avatar_color: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
     notes: [],
@@ -457,7 +488,6 @@ function bindDrawerFields() {
     ['d-email', 'email'],
     ['d-start', 'start_date'],
     ['d-location', 'location'],
-    ['d-address', 'address'],
     ['d-ssn', 'ssn'],
   ];
   fields.forEach(([id, key]) => {
