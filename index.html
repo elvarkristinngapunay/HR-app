@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Starfsmenn — HR</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">HR</div>
+      <div>
+        <h1>Starfsmenn</h1>
+        <p class="subtle" id="count-label">0 starfsmenn</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <input type="search" id="search" placeholder="Leita eftir nafni, deild, netfangi…" />
+      <button class="btn primary" id="add-employee-btn">+ Nýr starfsmaður</button>
+    </div>
+  </header>
+
+  <main class="canvas-wrap">
+    <div class="canvas-controls">
+      <button class="chip" data-zoom="out">−</button>
+      <button class="chip" data-zoom="reset">100%</button>
+      <button class="chip" data-zoom="in">+</button>
+    </div>
+    <div class="canvas" id="canvas">
+      <div class="tree" id="tree"></div>
+    </div>
+    <div class="empty-state" id="empty-state" hidden>
+      <div class="empty-icon">👥</div>
+      <h2>Engir starfsmenn ennþá</h2>
+      <p>Byrjaðu á að bæta við fyrsta starfsmanninum þínum.</p>
+      <button class="btn primary" id="empty-add-btn">+ Nýr starfsmaður</button>
+    </div>
+  </main>
+
+  <!-- Detail drawer -->
+  <aside class="drawer" id="drawer" hidden>
+    <div class="drawer-inner">
+      <div class="drawer-header">
+        <div class="avatar" id="d-avatar">?</div>
+        <div class="drawer-title">
+          <input class="title-input" id="d-name" placeholder="Nafn" />
+          <input class="subtitle-input" id="d-role" placeholder="Starfsheiti" />
+        </div>
+        <button class="icon-btn" id="drawer-close" title="Loka">✕</button>
+      </div>
+
+      <nav class="tabs">
+        <button class="tab active" data-tab="info">Upplýsingar</button>
+        <button class="tab" data-tab="notes">Minnispunktar <span class="badge" id="notes-count">0</span></button>
+      </nav>
+
+      <section class="tab-panel active" data-panel="info">
+        <div class="field-grid">
+          <label>Deild
+            <input id="d-department" placeholder="t.d. Framleiðsla" />
+          </label>
+          <label>Yfirmaður
+            <select id="d-manager"><option value="">— Enginn (efst) —</option></select>
+          </label>
+          <label>Sími
+            <input id="d-phone" type="tel" placeholder="+354 …" />
+          </label>
+          <label>Netfang
+            <input id="d-email" type="email" placeholder="nafn@fyrirtaeki.is" />
+          </label>
+          <label>Fæðingardagur
+            <input id="d-birthdate" type="date" />
+          </label>
+          <label>Aldur
+            <input id="d-age" type="text" readonly placeholder="—" />
+          </label>
+          <label>Ráðningardagur
+            <input id="d-start" type="date" />
+          </label>
+          <label>Staðsetning
+            <input id="d-location" placeholder="t.d. Reykjavík" />
+          </label>
+          <label class="span-2">Heimilisfang
+            <input id="d-address" placeholder="Gata og póstnúmer" />
+          </label>
+          <label class="span-2">Kennitala
+            <input id="d-ssn" placeholder="000000-0000" />
+          </label>
+        </div>
+
+        <div class="drawer-footer">
+          <button class="btn danger ghost" id="delete-btn">Eyða starfsmanni</button>
+          <div class="save-status" id="save-status">Vistað</div>
+        </div>
+      </section>
+
+      <section class="tab-panel" data-panel="notes">
+        <div class="note-composer">
+          <textarea id="note-input" placeholder="Skrifaðu minnispunkt… (t.d. starfsmannasamtal, hrós, atburð)"></textarea>
+          <button class="btn primary" id="add-note-btn">Bæta við</button>
+        </div>
+        <ol class="notes-list" id="notes-list"></ol>
+      </section>
+    </div>
+  </aside>
+
+  <div class="scrim" id="scrim" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
