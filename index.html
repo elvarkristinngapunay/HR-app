@@ -17,6 +17,7 @@
     </div>
     <div class="topbar-actions">
       <input type="search" id="search" placeholder="Leita eftir nafni, deild, netfangi…" />
+      <button class="btn" id="depts-btn">Deildir</button>
       <button class="btn primary" id="add-employee-btn">+ Nýr starfsmaður</button>
     </div>
   </header>
@@ -58,7 +59,7 @@
       <section class="tab-panel active" data-panel="info">
         <div class="field-grid">
           <label>Deild
-            <input id="d-department" placeholder="t.d. Framleiðsla" />
+            <select id="d-department"><option value="">— Engin —</option></select>
           </label>
           <label>Yfirmaður
             <select id="d-manager"><option value="">— Enginn (efst) —</option></select>
@@ -106,6 +107,32 @@
   </aside>
 
   <div class="scrim" id="scrim" hidden></div>
+
+  <!-- Departments modal -->
+  <div class="modal" id="depts-modal" hidden>
+    <div class="modal-scrim" data-close-modal></div>
+    <div class="modal-card">
+      <header class="modal-header">
+        <div>
+          <h2>Deildir</h2>
+          <p class="subtle">Stjórnaðu deildum og sjáðu hverjir eru í hverri</p>
+        </div>
+        <button class="icon-btn" data-close-modal title="Loka">✕</button>
+      </header>
+
+      <div class="modal-body">
+        <form class="dept-form" id="dept-form">
+          <div class="dept-form-row">
+            <input type="text" id="new-dept-name" placeholder="Nafn deildar…" required maxlength="60" />
+            <button type="submit" class="btn primary">Bæta við</button>
+          </div>
+          <div class="color-picker" id="new-dept-color"></div>
+        </form>
+
+        <ul class="dept-list" id="dept-list"></ul>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

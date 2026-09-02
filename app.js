@@ -5,8 +5,13 @@ const AVATAR_COLORS = [
   '#0891b2', '#4f46e5', '#c026d3', '#dc2626', '#65a30d',
   '#0284c7', '#9333ea', '#e11d48', '#d97706', '#0d9488',
 ];
+const DEPT_COLORS = [
+  '#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
+  '#06b6d4', '#3b82f6', '#a855f7', '#ef4444', '#84cc16',
+  '#0ea5e9', '#d946ef', '#f97316', '#14b8a6', '#64748b',
+];
 
-let state = load();
+let state = migrate(load());
 let selectedId = null;
 let zoom = 1;
 let saveTimer = null;
@@ -20,38 +25,67 @@ function load() {
 }
 
 function seed() {
+  const depts = [
+    { id: 'd_stjorn', name: 'Stjórn', color: '#6366f1' },
+    { id: 'd_taekni', name: 'Tækni', color: '#10b981' },
+    { id: 'd_fjarmal', name: 'Fjármál', color: '#f59e0b' },
+  ];
   return {
+    departments: depts,
     employees: [
       demo('ceo', 'Anna Björnsdóttir', 'Framkvæmdastjóri', null, {
-        department: 'Stjórn',
+        department_id: 'd_stjorn',
         email: 'anna@fyrirtaeki.is',
         phone: '+354 555 0100',
         location: 'Reykjavík',
       }),
       demo('cto', 'Björn Sigurðsson', 'Tæknistjóri', 'ceo', {
-        department: 'Tækni',
+        department_id: 'd_taekni',
         email: 'bjorn@fyrirtaeki.is',
         phone: '+354 555 0110',
       }),
       demo('cfo', 'Elín Þórsdóttir', 'Fjármálastjóri', 'ceo', {
-        department: 'Fjármál',
+        department_id: 'd_fjarmal',
         email: 'elin@fyrirtaeki.is',
         phone: '+354 555 0120',
       }),
       demo('dev1', 'Kristján Guðmundsson', 'Hugbúnaðarsérfræðingur', 'cto', {
-        department: 'Tækni',
+        department_id: 'd_taekni',
         email: 'kristjan@fyrirtaeki.is',
       }),
       demo('dev2', 'Hanna Ólafsdóttir', 'Hugbúnaðarsérfræðingur', 'cto', {
-        department: 'Tækni',
+        department_id: 'd_taekni',
         email: 'hanna@fyrirtaeki.is',
       }),
       demo('acc1', 'Sigurður Jónsson', 'Bókari', 'cfo', {
-        department: 'Fjármál',
+        department_id: 'd_fjarmal',
         email: 'sigurdur@fyrirtaeki.is',
       }),
     ],
   };
+}
+
+function migrate(s) {
+  s.departments = s.departments || [];
+  s.employees = s.employees || [];
+  // Convert legacy `department` string on employees to department_id
+  s.employees.forEach(emp => {
+    if (!('department_id' in emp)) emp.department_id = null;
+    if (emp.department && !emp.department_id) {
+      let dept = s.departments.find(d => d.name.toLowerCase() === emp.department.toLowerCase());
+      if (!dept) {
+        dept = {
+          id: 'd_' + Math.random().toString(36).slice(2, 9),
+          name: emp.department,
+          color: DEPT_COLORS[s.departments.length % DEPT_COLORS.length],
+        };
+        s.departments.push(dept);
+      }
+      emp.department_id = dept.id;
+    }
+    delete emp.department;
+  });
+  return s;
 }
 
 function demo(id, name, role, manager_id, extra = {}) {
@@ -60,7 +94,7 @@ function demo(id, name, role, manager_id, extra = {}) {
     name,
     role,
     manager_id,
-    department: extra.department || '',
+    department_id: extra.department_id || null,
     phone: extra.phone || '',
     email: extra.email || '',
     birthdate: extra.birthdate || '',
@@ -72,6 +106,10 @@ function demo(id, name, role, manager_id, extra = {}) {
     notes: [],
   };
 }
+
+function findDept(id) { return state.departments.find(d => d.id === id); }
+function deptName(id) { const d = findDept(id); return d ? d.name : ''; }
+function deptColor(id) { const d = findDept(id); return d ? d.color : '#94a3b8'; }
 
 function save() {
   try {
@@ -155,7 +193,7 @@ function renderTree() {
   const matchedIds = new Set();
   if (query) {
     state.employees.forEach(e => {
-      const hay = [e.name, e.role, e.department, e.email, e.phone].join(' ').toLowerCase();
+      const hay = [e.name, e.role, deptName(e.department_id), e.email, e.phone].join(' ').toLowerCase();
       if (hay.includes(query)) matchedIds.add(e.id);
     });
   }
@@ -199,11 +237,16 @@ function renderCard(emp, query, matchedIds) {
   if (emp.id === selectedId) card.classList.add('selected');
   if (query && !matchedIds.has(emp.id)) card.classList.add('dim');
 
+  const dept = findDept(emp.department_id);
+  const deptHtml = dept
+    ? `<div class="card-department" style="background:${hexToRgba(dept.color, 0.12)};color:${dept.color}">${escapeHtml(dept.name)}</div>`
+    : '';
+
   card.innerHTML = `
     <div class="avatar" style="background:${emp.avatar_color}">${initials(emp.name)}</div>
     <div class="card-name">${escapeHtml(emp.name || 'Nafnlaust')}</div>
     <div class="card-role">${escapeHtml(emp.role || '—')}</div>
-    ${emp.department ? `<div class="card-department">${escapeHtml(emp.department)}</div>` : ''}
+    ${deptHtml}
     <div class="card-actions">
       <button title="Bæta undirmanni við" data-action="add-child">+</button>
     </div>
@@ -216,6 +259,14 @@ function renderCard(emp, query, matchedIds) {
     openDrawer(emp.id);
   });
   return card;
+}
+
+function hexToRgba(hex, alpha) {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 function escapeHtml(s) {
@@ -250,11 +301,27 @@ function openDrawer(id) {
   setVal('d-age', ageFromBirthdate(emp.birthdate));
 
   populateManagerSelect(emp);
+  populateDeptSelect(emp);
   renderNotes(emp);
   renderTree();
 
   // Default to info tab
   switchTab('info');
+}
+
+function populateDeptSelect(emp) {
+  const el = document.getElementById('d-department');
+  const options = ['<option value="">— Engin —</option>'];
+  state.departments
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name, 'is'))
+    .forEach(d => {
+      const sel = emp.department_id === d.id ? ' selected' : '';
+      options.push(`<option value="${d.id}"${sel}>${escapeHtml(d.name)}</option>`);
+    });
+  options.push('<option value="__new__">+ Ný deild…</option>');
+  el.innerHTML = options.join('');
+  el.value = emp.department_id || '';
 }
 
 function setVal(id, v) { document.getElementById(id).value = v || ''; }
@@ -337,12 +404,13 @@ function deleteNote(noteId) {
 
 // ---------- Add / delete employee ----------
 function addEmployee(managerId = null) {
+  const managerDept = managerId ? findEmp(managerId)?.department_id : null;
   const emp = {
     id: uid(),
     name: 'Nýr starfsmaður',
     role: '',
     manager_id: managerId,
-    department: '',
+    department_id: managerDept || null,
     phone: '',
     email: '',
     birthdate: '',
@@ -385,7 +453,6 @@ function bindDrawerFields() {
   const fields = [
     ['d-name', 'name'],
     ['d-role', 'role'],
-    ['d-department', 'department'],
     ['d-phone', 'phone'],
     ['d-email', 'email'],
     ['d-start', 'start_date'],
@@ -399,8 +466,7 @@ function bindDrawerFields() {
       if (!emp) return;
       emp[key] = getVal(id);
       scheduleSave();
-      if (key === 'name' || key === 'role' || key === 'department') {
-        // Update card + header avatar
+      if (key === 'name' || key === 'role') {
         renderTree();
         if (key === 'name') {
           const av = document.getElementById('d-avatar');
@@ -408,6 +474,26 @@ function bindDrawerFields() {
         }
       }
     });
+  });
+
+  document.getElementById('d-department').addEventListener('change', () => {
+    const emp = findEmp(selectedId);
+    if (!emp) return;
+    const v = getVal('d-department');
+    if (v === '__new__') {
+      const name = prompt('Nafn nýrrar deildar:');
+      if (name && name.trim()) {
+        const dept = createDepartment(name.trim());
+        emp.department_id = dept.id;
+      } else {
+        // Revert
+      }
+      populateDeptSelect(emp);
+    } else {
+      emp.department_id = v || null;
+    }
+    save();
+    renderTree();
   });
 
   document.getElementById('d-birthdate').addEventListener('input', () => {
@@ -431,6 +517,113 @@ function bindDrawerFields() {
     save();
     renderTree();
   });
+}
+
+// ---------- Departments ----------
+function createDepartment(name, color) {
+  const usedColors = new Set(state.departments.map(d => d.color));
+  const chosenColor = color || DEPT_COLORS.find(c => !usedColors.has(c)) || DEPT_COLORS[state.departments.length % DEPT_COLORS.length];
+  const dept = {
+    id: 'd_' + Math.random().toString(36).slice(2, 9),
+    name: name.trim(),
+    color: chosenColor,
+  };
+  state.departments.push(dept);
+  save();
+  return dept;
+}
+
+function renameDepartment(id, newName) {
+  const d = findDept(id);
+  if (!d) return;
+  d.name = newName.trim() || d.name;
+  save();
+}
+
+function recolorDepartment(id, color) {
+  const d = findDept(id);
+  if (!d) return;
+  d.color = color;
+  save();
+}
+
+function cycleDeptColor(id) {
+  const d = findDept(id);
+  if (!d) return;
+  const i = DEPT_COLORS.indexOf(d.color);
+  d.color = DEPT_COLORS[(i + 1) % DEPT_COLORS.length];
+  save();
+  renderDeptList();
+  renderTree();
+}
+
+function deleteDepartment(id) {
+  const d = findDept(id);
+  if (!d) return;
+  const count = state.employees.filter(e => e.department_id === id).length;
+  const msg = count
+    ? `Eyða deildinni "${d.name}"? ${count} starfsmenn missa deild.`
+    : `Eyða deildinni "${d.name}"?`;
+  if (!confirm(msg)) return;
+  state.employees.forEach(e => { if (e.department_id === id) e.department_id = null; });
+  state.departments = state.departments.filter(x => x.id !== id);
+  save();
+  renderTree();
+  renderDeptList();
+  if (selectedId) populateDeptSelect(findEmp(selectedId));
+}
+
+function openDeptModal() {
+  document.getElementById('depts-modal').hidden = false;
+  document.getElementById('new-dept-name').value = '';
+  renderColorPicker(null);
+  renderDeptList();
+  setTimeout(() => document.getElementById('new-dept-name').focus(), 50);
+}
+
+function closeDeptModal() {
+  document.getElementById('depts-modal').hidden = true;
+}
+
+let pendingColor = null;
+
+function renderColorPicker(selected) {
+  const el = document.getElementById('new-dept-color');
+  const usedColors = new Set(state.departments.map(d => d.color));
+  const suggestion = DEPT_COLORS.find(c => !usedColors.has(c)) || DEPT_COLORS[0];
+  pendingColor = selected || suggestion;
+  el.innerHTML = DEPT_COLORS.map(c => `
+    <button type="button" class="swatch${c === pendingColor ? ' selected' : ''}"
+      style="background:${c}" data-color="${c}" title="${c}"></button>
+  `).join('');
+  el.onclick = (e) => {
+    const b = e.target.closest('.swatch');
+    if (!b) return;
+    pendingColor = b.dataset.color;
+    el.querySelectorAll('.swatch').forEach(s => s.classList.toggle('selected', s.dataset.color === pendingColor));
+  };
+}
+
+function renderDeptList() {
+  const el = document.getElementById('dept-list');
+  const list = state.departments.slice().sort((a, b) => a.name.localeCompare(b.name, 'is'));
+  if (!list.length) {
+    el.innerHTML = '<div class="dept-empty">Engar deildir ennþá. Bættu við þeirri fyrstu að ofan.</div>';
+    return;
+  }
+  el.innerHTML = list.map(d => {
+    const count = state.employees.filter(e => e.department_id === d.id).length;
+    return `
+      <li class="dept-item" data-dept-id="${d.id}">
+        <span class="dept-dot" style="background:${d.color}" data-action="recolor" title="Breyta lit"></span>
+        <input class="dept-name" value="${escapeHtml(d.name)}" data-action="rename" />
+        <span class="dept-count">${count} ${count === 1 ? 'starfsmaður' : 'starfsmenn'}</span>
+        <div class="dept-actions">
+          <button class="icon-btn danger" data-action="delete" title="Eyða">🗑</button>
+        </div>
+      </li>
+    `;
+  }).join('');
 }
 
 // ---------- Zoom ----------
@@ -478,7 +671,51 @@ function init() {
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeDrawer();
+    if (e.key === 'Escape') {
+      if (!document.getElementById('depts-modal').hidden) closeDeptModal();
+      else closeDrawer();
+    }
+  });
+
+  document.getElementById('depts-btn').addEventListener('click', openDeptModal);
+  document.querySelectorAll('[data-close-modal]').forEach(el => {
+    el.addEventListener('click', closeDeptModal);
+  });
+
+  document.getElementById('dept-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = document.getElementById('new-dept-name').value.trim();
+    if (!name) return;
+    if (state.departments.some(d => d.name.toLowerCase() === name.toLowerCase())) {
+      alert('Deild með þessu nafni er þegar til.');
+      return;
+    }
+    createDepartment(name, pendingColor);
+    document.getElementById('new-dept-name').value = '';
+    renderColorPicker(null);
+    renderDeptList();
+    if (selectedId) populateDeptSelect(findEmp(selectedId));
+  });
+
+  const deptList = document.getElementById('dept-list');
+  deptList.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-dept-id]');
+    if (!item) return;
+    const id = item.dataset.deptId;
+    if (e.target.closest('[data-action=delete]')) {
+      deleteDepartment(id);
+    } else if (e.target.closest('[data-action=recolor]')) {
+      cycleDeptColor(id);
+    }
+  });
+  deptList.addEventListener('change', (e) => {
+    const input = e.target.closest('[data-action=rename]');
+    if (!input) return;
+    const item = input.closest('[data-dept-id]');
+    renameDepartment(item.dataset.deptId, input.value);
+    renderDeptList();
+    renderTree();
+    if (selectedId) populateDeptSelect(findEmp(selectedId));
   });
 
   bindDrawerFields();
