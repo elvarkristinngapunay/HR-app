@@ -331,6 +331,7 @@ function openDrawer(id) {
   populateManagerSelect(emp);
   populateDeptSelect(emp);
   renderNotes(emp);
+  renderDocs(emp);
   renderTree();
 
   // Default to info tab
@@ -471,8 +472,8 @@ function deleteEmployee(id) {
     ? `Eyða "${emp.name}"? Undirmenn (${kids.length}) færast upp á yfirmanninn.`
     : `Eyða "${emp.name}"?`;
   if (!confirm(msg)) return;
-  // Reparent children to the deleted employee's manager
   kids.forEach(k => k.manager_id = emp.manager_id || null);
+  (emp.documents || []).forEach(d => { removeBlob(d.id).catch(() => {}); });
   state.employees = state.employees.filter(e => e.id !== id);
   save();
   closeDrawer();
@@ -547,6 +548,149 @@ function bindDrawerFields() {
     save();
     renderTree();
   });
+}
+
+// ---------- Documents (PDF storage via IndexedDB) ----------
+const MAX_DOC_BYTES = 25 * 1024 * 1024;
+
+let _dbPromise = null;
+function docsDB() {
+  if (_dbPromise) return _dbPromise;
+  _dbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open('hr-app-docs', 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore('files');
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return _dbPromise;
+}
+
+async function storeBlob(id, blob) {
+  const db = await docsDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('files', 'readwrite');
+    tx.objectStore('files').put(blob, id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function readBlob(id) {
+  const db = await docsDB();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction('files').objectStore('files').get(id);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function removeBlob(id) {
+  const db = await docsDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('files', 'readwrite');
+    tx.objectStore('files').delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+function formatBytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+async function addFiles(fileList) {
+  if (!selectedId) return;
+  const emp = findEmp(selectedId);
+  emp.documents = emp.documents || [];
+  const errors = [];
+  for (const file of fileList) {
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      errors.push(`${file.name}: aðeins PDF-skjöl leyfð`);
+      continue;
+    }
+    if (file.size > MAX_DOC_BYTES) {
+      errors.push(`${file.name}: of stórt (max 25 MB)`);
+      continue;
+    }
+    const id = 'doc_' + Math.random().toString(36).slice(2, 12);
+    try {
+      await storeBlob(id, file);
+      emp.documents.push({
+        id,
+        name: file.name,
+        size: file.size,
+        mime: file.type || 'application/pdf',
+        added_at: new Date().toISOString(),
+      });
+    } catch (err) {
+      errors.push(`${file.name}: ${err.message || 'gat ekki vistað'}`);
+    }
+  }
+  save();
+  renderDocs(emp);
+  if (errors.length) alert(errors.join('\n'));
+}
+
+async function openDoc(docId) {
+  const blob = await readBlob(docId);
+  if (!blob) { alert('Skjalið fannst ekki'); return; }
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank', 'noopener');
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+async function downloadDoc(docId, name) {
+  const blob = await readBlob(docId);
+  if (!blob) { alert('Skjalið fannst ekki'); return; }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+async function deleteDoc(docId) {
+  if (!selectedId) return;
+  const emp = findEmp(selectedId);
+  const doc = (emp.documents || []).find(d => d.id === docId);
+  if (!doc) return;
+  if (!confirm(`Eyða skjalinu "${doc.name}"?`)) return;
+  try { await removeBlob(docId); } catch (_) {}
+  emp.documents = emp.documents.filter(d => d.id !== docId);
+  save();
+  renderDocs(emp);
+}
+
+function renderDocs(emp) {
+  const list = document.getElementById('docs-list');
+  const count = document.getElementById('docs-count');
+  const docs = (emp.documents || []).slice().sort((a, b) => (b.added_at || '').localeCompare(a.added_at || ''));
+  count.textContent = docs.length;
+  if (!docs.length) {
+    list.innerHTML = '<div class="docs-empty">Engin skjöl ennþá. Bættu við fyrsta PDF-skjalinu.</div>';
+    return;
+  }
+  list.innerHTML = docs.map(d => `
+    <li class="doc-item" data-doc-id="${d.id}">
+      <div class="doc-icon">PDF</div>
+      <div class="doc-meta">
+        <div class="doc-name" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</div>
+        <div class="doc-sub">${formatBytes(d.size)} · ${escapeHtml(formatDateTime(d.added_at))}</div>
+      </div>
+      <div class="doc-actions">
+        <button class="icon-btn" data-action="open" title="Opna">↗</button>
+        <button class="icon-btn" data-action="download" title="Sækja">↓</button>
+        <button class="icon-btn danger" data-action="delete" title="Eyða">✕</button>
+      </div>
+    </li>
+  `).join('');
 }
 
 // ---------- Departments ----------
@@ -686,6 +830,36 @@ function init() {
       const li = btn.closest('[data-note-id]');
       if (li) deleteNote(li.dataset.noteId);
     }
+  });
+
+  const fileInput = document.getElementById('file-input');
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files && fileInput.files.length) addFiles(fileInput.files);
+    fileInput.value = '';
+  });
+
+  const dz = document.getElementById('dropzone');
+  ['dragenter', 'dragover'].forEach(ev => dz.addEventListener(ev, (e) => {
+    e.preventDefault(); e.stopPropagation();
+    dz.classList.add('dragover');
+  }));
+  ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, (e) => {
+    e.preventDefault(); e.stopPropagation();
+    dz.classList.remove('dragover');
+  }));
+  dz.addEventListener('drop', (e) => {
+    if (e.dataTransfer && e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+  });
+
+  document.getElementById('docs-list').addEventListener('click', (e) => {
+    const item = e.target.closest('[data-doc-id]');
+    if (!item) return;
+    const id = item.dataset.docId;
+    const emp = findEmp(selectedId);
+    const doc = emp && (emp.documents || []).find(d => d.id === id);
+    if (e.target.closest('[data-action=open]')) openDoc(id);
+    else if (e.target.closest('[data-action=download]')) downloadDoc(id, doc?.name || 'skjal.pdf');
+    else if (e.target.closest('[data-action=delete]')) deleteDoc(id);
   });
 
   document.getElementById('search').addEventListener('input', renderTree);

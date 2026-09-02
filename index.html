@@ -54,6 +54,7 @@
       <nav class="tabs">
         <button class="tab active" data-tab="info">Upplýsingar</button>
         <button class="tab" data-tab="notes">Minnispunktar <span class="badge" id="notes-count">0</span></button>
+        <button class="tab" data-tab="docs">Skjöl <span class="badge" id="docs-count">0</span></button>
       </nav>
 
       <section class="tab-panel active" data-panel="info">
@@ -99,6 +100,18 @@
           <button class="btn primary" id="add-note-btn">Bæta við</button>
         </div>
         <ol class="notes-list" id="notes-list"></ol>
+      </section>
+
+      <section class="tab-panel" data-panel="docs">
+        <label class="dropzone" id="dropzone">
+          <input type="file" id="file-input" accept="application/pdf,.pdf" multiple hidden />
+          <div class="dropzone-inner">
+            <div class="dropzone-icon">📄</div>
+            <div class="dropzone-title">Dragðu PDF hingað eða smelltu</div>
+            <div class="dropzone-sub">Aðeins PDF-skjöl, allt að 25 MB hvert</div>
+          </div>
+        </label>
+        <ol class="docs-list" id="docs-list"></ol>
       </section>
     </div>
   </aside>
