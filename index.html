@@ -4,40 +4,122 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=3" />
+<link rel="stylesheet" href="style.css?v=5" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="brand-mark">HR</div>
-      <div>
-        <h1>Starfsmenn</h1>
-        <p class="subtle" id="count-label">0 starfsmenn</p>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">HR</div>
+        <div>
+          <h1>Starfsmenn</h1>
+          <p class="subtle" id="count-label">0 starfsmenn</p>
+        </div>
       </div>
-    </div>
-    <div class="topbar-actions">
-      <input type="search" id="search" placeholder="Leita eftir nafni, deild, netfangi…" />
-      <button class="btn" id="depts-btn">Deildir</button>
-      <button class="btn primary" id="add-employee-btn">+ Nýr starfsmaður</button>
-    </div>
-  </header>
 
-  <main class="canvas-wrap">
-    <div class="canvas-controls">
-      <button class="chip" data-zoom="out">−</button>
-      <button class="chip" data-zoom="reset">100%</button>
-      <button class="chip" data-zoom="in">+</button>
+      <nav class="sidebar-nav" id="section-nav">
+        <button class="sidebar-item active" data-section="people">
+          <span class="sidebar-icon">👥</span>
+          <span>Allir</span>
+        </button>
+        <button class="sidebar-item" data-section="events">
+          <span class="sidebar-icon">📅</span>
+          <span>Viðburðir</span>
+        </button>
+        <button class="sidebar-item" data-section="scratch">
+          <span class="sidebar-icon">📝</span>
+          <span>Skjal</span>
+        </button>
+      </nav>
+    </aside>
+
+    <div class="main-column">
+      <!-- People section -->
+      <section class="section" id="section-people">
+        <header class="section-header">
+          <div>
+            <h2>Allir</h2>
+            <p class="subtle">Skipurit fyrirtækisins</p>
+          </div>
+          <div class="section-actions">
+            <input type="search" id="search" placeholder="Leita eftir nafni, deild, netfangi…" />
+            <button class="btn" id="depts-btn">Deildir</button>
+            <button class="btn primary" id="add-employee-btn">+ Nýr starfsmaður</button>
+          </div>
+        </header>
+
+        <main class="canvas-wrap">
+          <div class="canvas-controls">
+            <button class="chip" data-zoom="out">−</button>
+            <button class="chip" data-zoom="reset">100%</button>
+            <button class="chip" data-zoom="in">+</button>
+          </div>
+          <div class="canvas" id="canvas">
+            <div class="tree" id="tree"></div>
+          </div>
+          <div class="empty-state" id="empty-state" hidden>
+            <div class="empty-icon">👥</div>
+            <h2>Engir starfsmenn ennþá</h2>
+            <p>Byrjaðu á að bæta við fyrsta starfsmanninum þínum.</p>
+            <button class="btn primary" id="empty-add-btn">+ Nýr starfsmaður</button>
+          </div>
+        </main>
+      </section>
+
+      <!-- Scratch pad (personal notes) -->
+      <section class="section" id="section-scratch" hidden>
+        <header class="section-header">
+          <div>
+            <h2>Skjal</h2>
+            <p class="subtle">Persónulegar glósur — tagg-aðu starfsfólk og settu áminningar</p>
+          </div>
+          <div class="section-actions">
+            <input type="search" id="scratch-search" placeholder="Leita í glósum…" />
+            <button class="btn primary" id="add-scratch-btn">+ Ný glósa</button>
+          </div>
+        </header>
+
+        <main class="scratch-main">
+          <div class="scratch-list" id="scratch-list"></div>
+          <div class="empty-state" id="scratch-empty" hidden>
+            <div class="empty-icon">📝</div>
+            <h2>Engar glósur ennþá</h2>
+            <p>Skrifaðu niður hugmyndir, taggaðu starfsfólk og settu áminningar.</p>
+            <button class="btn primary" id="scratch-empty-add-btn">+ Ný glósa</button>
+          </div>
+        </main>
+      </section>
+
+      <!-- Events section -->
+      <section class="section" id="section-events" hidden>
+        <header class="section-header">
+          <div>
+            <h2>Viðburðir</h2>
+            <p class="subtle">Fundir, þjálfun, viðburðir starfsfólks</p>
+          </div>
+          <div class="section-actions">
+            <div class="event-view-toggle">
+              <button class="chip active" data-event-view="upcoming">Framundan</button>
+              <button class="chip" data-event-view="past">Liðnir</button>
+              <button class="chip" data-event-view="all">Allir</button>
+            </div>
+            <button class="btn primary" id="add-event-btn">+ Nýr viðburður</button>
+          </div>
+        </header>
+
+        <main class="events-main">
+          <div class="events-list" id="events-list"></div>
+          <div class="empty-state" id="events-empty" hidden>
+            <div class="empty-icon">📅</div>
+            <h2>Engir viðburðir ennþá</h2>
+            <p>Skipuleggðu fyrsta viðburðinn þinn — fund, þjálfun, afmæli eða annað.</p>
+            <button class="btn primary" id="events-empty-add-btn">+ Nýr viðburður</button>
+          </div>
+        </main>
+      </section>
     </div>
-    <div class="canvas" id="canvas">
-      <div class="tree" id="tree"></div>
-    </div>
-    <div class="empty-state" id="empty-state" hidden>
-      <div class="empty-icon">👥</div>
-      <h2>Engir starfsmenn ennþá</h2>
-      <p>Byrjaðu á að bæta við fyrsta starfsmanninum þínum.</p>
-      <button class="btn primary" id="empty-add-btn">+ Nýr starfsmaður</button>
-    </div>
-  </main>
+  </div>
 
   <!-- Detail drawer -->
   <aside class="drawer" id="drawer" hidden>
@@ -160,6 +242,103 @@
     </div>
   </div>
 
-  <script src="app.js?v=3"></script>
+  <!-- Event modal -->
+  <div class="modal" id="event-modal" hidden>
+    <div class="modal-scrim" data-close-modal></div>
+    <div class="modal-card modal-card-wide">
+      <header class="modal-header">
+        <div>
+          <h2 id="event-modal-title">Nýr viðburður</h2>
+          <p class="subtle">Fylltu inn upplýsingar um viðburðinn</p>
+        </div>
+        <button class="icon-btn" data-close-modal title="Loka">✕</button>
+      </header>
+      <form class="modal-body" id="event-form">
+        <div class="form-grid">
+          <label class="span-2">Titill
+            <input type="text" id="event-title" required maxlength="120" placeholder="t.d. Starfsmannafundur" />
+          </label>
+          <label>Dagsetning
+            <input type="text" id="event-date" placeholder="dd.mm.áááá" inputmode="numeric" autocomplete="off" required />
+          </label>
+          <label>Tími
+            <input type="time" id="event-time" />
+          </label>
+          <label>Staðsetning
+            <input type="text" id="event-location" placeholder="t.d. Fundarherbergi 1" />
+          </label>
+          <label>Áminning
+            <input type="datetime-local" id="event-remind" />
+          </label>
+          <label class="span-2">Lýsing
+            <textarea id="event-description" rows="3" placeholder="Nánari lýsing viðburðar…"></textarea>
+          </label>
+          <label class="span-2">Þátttakendur
+            <div class="participant-picker">
+              <div class="participant-chips" id="event-participants"></div>
+              <select id="event-participant-add">
+                <option value="">+ Bæta við þátttakanda…</option>
+              </select>
+              <p class="field-hint">Skildu eftir tómt til að ná til allra starfsmanna.</p>
+            </div>
+          </label>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn ghost danger" id="event-delete-btn" hidden>Eyða</button>
+          <div class="footer-right">
+            <button type="button" class="btn" data-close-modal>Hætta við</button>
+            <button type="submit" class="btn primary">Vista</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Scratch note modal -->
+  <div class="modal" id="scratch-modal" hidden>
+    <div class="modal-scrim" data-close-modal></div>
+    <div class="modal-card modal-card-wide">
+      <header class="modal-header">
+        <div>
+          <h2 id="scratch-modal-title">Ný glósa</h2>
+          <p class="subtle">Skrifaðu niður hvað sem er</p>
+        </div>
+        <button class="icon-btn" data-close-modal title="Loka">✕</button>
+      </header>
+      <form class="modal-body" id="scratch-form">
+        <label class="scratch-title-label">Fyrirsögn (valfrjálst)
+          <input type="text" id="scratch-title" maxlength="120" placeholder="Stutt lýsing…" />
+        </label>
+        <label class="scratch-body-label">Texti
+          <textarea id="scratch-body" rows="8" placeholder="Skrifaðu hvað sem er… nota @ til að tagga starfsmann" required></textarea>
+        </label>
+        <div class="scratch-mentions" id="scratch-mentions"></div>
+
+        <div class="form-grid">
+          <label>Áminning
+            <input type="datetime-local" id="scratch-remind" />
+          </label>
+          <label>Taggaðir starfsmenn
+            <select id="scratch-tag-add">
+              <option value="">+ Tagga starfsmann…</option>
+            </select>
+          </label>
+          <div class="span-2">
+            <div class="participant-chips" id="scratch-tags"></div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn ghost danger" id="scratch-delete-btn" hidden>Eyða</button>
+          <div class="footer-right">
+            <button type="button" class="btn" data-close-modal>Hætta við</button>
+            <button type="submit" class="btn primary">Vista</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js?v=5"></script>
 </body>
 </html>

@@ -97,6 +97,8 @@ function migrate(s) {
   s.employees.forEach(emp => {
     emp.manager_ids = emp.manager_ids.filter(id => validIds.has(id));
   });
+  s.events = s.events || [];
+  s.scratchNotes = s.scratchNotes || [];
   return s;
 }
 
@@ -1091,6 +1093,407 @@ function init() {
   // Fire reminders now and then every minute
   scanReminders();
   setInterval(scanReminders, 60_000);
+
+  initSections();
+  initEvents();
+  initScratch();
 }
+
+// ---------- Sections (Allir / Viðburðir / Skjal) ----------
+const SECTION_KEY = 'hr-app.section';
+function initSections() {
+  const nav = document.getElementById('section-nav');
+  nav.addEventListener('click', (e) => {
+    const btn = e.target.closest('.sidebar-item');
+    if (!btn) return;
+    switchSection(btn.dataset.section);
+  });
+  const saved = localStorage.getItem(SECTION_KEY) || 'people';
+  switchSection(saved);
+}
+function switchSection(name) {
+  document.querySelectorAll('.sidebar-item').forEach(b => {
+    b.classList.toggle('active', b.dataset.section === name);
+  });
+  document.querySelectorAll('.section').forEach(s => {
+    s.hidden = (s.id !== 'section-' + name);
+  });
+  localStorage.setItem(SECTION_KEY, name);
+  if (name === 'events') renderEvents();
+  if (name === 'scratch') renderScratch();
+}
+
+// ---------- Events ----------
+const MONTHS_IS = ['jan', 'feb', 'mar', 'apr', 'maí', 'jún', 'júl', 'ágú', 'sep', 'okt', 'nóv', 'des'];
+let editingEventId = null;
+let eventView = 'upcoming';
+let eventDraftParticipants = [];
+
+function initEvents() {
+  document.getElementById('add-event-btn').addEventListener('click', () => openEventModal(null));
+  document.getElementById('events-empty-add-btn').addEventListener('click', () => openEventModal(null));
+  document.getElementById('event-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    saveEventFromForm();
+  });
+  document.getElementById('event-delete-btn').addEventListener('click', () => {
+    if (!editingEventId) return;
+    const ev = state.events.find(x => x.id === editingEventId);
+    if (!ev) return;
+    if (!confirm(`Eyða viðburði "${ev.title}"?`)) return;
+    state.events = state.events.filter(x => x.id !== editingEventId);
+    save();
+    closeModal('event-modal');
+    renderEvents();
+  });
+  document.getElementById('event-date').addEventListener('input', (e) => {
+    const raw = e.target.value;
+    const formatted = formatDateStr(raw);
+    if (raw !== formatted) {
+      const atEnd = e.target.selectionStart >= raw.length;
+      e.target.value = formatted;
+      if (atEnd) e.target.setSelectionRange(formatted.length, formatted.length);
+    }
+  });
+  document.getElementById('event-participant-add').addEventListener('change', (e) => {
+    const id = e.target.value;
+    if (!id) return;
+    if (!eventDraftParticipants.includes(id)) eventDraftParticipants.push(id);
+    renderEventParticipants();
+    populateEventParticipantSelect();
+  });
+  document.getElementById('event-participants').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-remove-participant]');
+    if (!btn) return;
+    eventDraftParticipants = eventDraftParticipants.filter(id => id !== btn.dataset.removeParticipant);
+    renderEventParticipants();
+    populateEventParticipantSelect();
+  });
+  document.querySelectorAll('[data-event-view]').forEach(b => {
+    b.addEventListener('click', () => {
+      eventView = b.dataset.eventView;
+      document.querySelectorAll('[data-event-view]').forEach(x => x.classList.toggle('active', x === b));
+      renderEvents();
+    });
+  });
+}
+
+function openEventModal(id) {
+  editingEventId = id;
+  const ev = id ? state.events.find(x => x.id === id) : null;
+  document.getElementById('event-modal-title').textContent = ev ? 'Breyta viðburði' : 'Nýr viðburður';
+  document.getElementById('event-title').value = ev?.title || '';
+  document.getElementById('event-date').value = ev?.date || '';
+  document.getElementById('event-time').value = ev?.time || '';
+  document.getElementById('event-location').value = ev?.location || '';
+  document.getElementById('event-description').value = ev?.description || '';
+  document.getElementById('event-remind').value = ev?.remind_at ? toLocalDatetime(ev.remind_at) : '';
+  eventDraftParticipants = ev ? [...(ev.participant_ids || [])] : [];
+  document.getElementById('event-delete-btn').hidden = !ev;
+  renderEventParticipants();
+  populateEventParticipantSelect();
+  document.getElementById('event-modal').hidden = false;
+  setTimeout(() => document.getElementById('event-title').focus(), 50);
+}
+
+function toLocalDatetime(iso) {
+  // Convert ISO to "YYYY-MM-DDTHH:MM" for datetime-local input
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function populateEventParticipantSelect() {
+  const el = document.getElementById('event-participant-add');
+  const taken = new Set(eventDraftParticipants);
+  const options = ['<option value="">+ Bæta við þátttakanda…</option>'];
+  state.employees
+    .filter(e => !taken.has(e.id))
+    .sort((a, b) => a.name.localeCompare(b.name, 'is'))
+    .forEach(e => {
+      options.push(`<option value="${e.id}">${escapeHtml(e.name)}${e.role ? ' — ' + escapeHtml(e.role) : ''}</option>`);
+    });
+  el.innerHTML = options.join('');
+  el.value = '';
+}
+
+function renderEventParticipants() {
+  const el = document.getElementById('event-participants');
+  el.innerHTML = eventDraftParticipants.map(id => {
+    const e = findEmp(id);
+    if (!e) return '';
+    return `<span class="participant-chip" data-emp-id="${id}">
+      <span class="chip-avatar" style="background:${e.avatar_color}">${initials(e.name)}</span>
+      <span>${escapeHtml(e.name)}</span>
+      <button type="button" class="chip-remove" data-remove-participant="${id}" title="Fjarlægja">✕</button>
+    </span>`;
+  }).join('');
+}
+
+function saveEventFromForm() {
+  const title = document.getElementById('event-title').value.trim();
+  const date = document.getElementById('event-date').value.trim();
+  if (!title || !date) return;
+  const parsed = parseFlexibleDate(date);
+  if (!parsed) { alert('Ógild dagsetning'); return; }
+  const time = document.getElementById('event-time').value;
+  const location = document.getElementById('event-location').value.trim();
+  const description = document.getElementById('event-description').value.trim();
+  const remindVal = document.getElementById('event-remind').value;
+  const remind_at = remindVal ? new Date(remindVal).toISOString() : null;
+
+  const iso = parsed.toISOString().slice(0, 10);
+  const ev = editingEventId
+    ? state.events.find(x => x.id === editingEventId)
+    : { id: 'ev_' + Math.random().toString(36).slice(2, 10), created_at: new Date().toISOString() };
+  ev.title = title;
+  ev.date = date;
+  ev.date_iso = iso;
+  ev.time = time;
+  ev.location = location;
+  ev.description = description;
+  ev.remind_at = remind_at;
+  ev.reminded = ev.reminded || false;
+  ev.participant_ids = [...eventDraftParticipants];
+  if (!editingEventId) state.events.push(ev);
+  save();
+  closeModal('event-modal');
+  renderEvents();
+}
+
+function closeModal(id) {
+  document.getElementById(id).hidden = true;
+}
+
+function renderEvents() {
+  const list = document.getElementById('events-list');
+  const empty = document.getElementById('events-empty');
+  const all = (state.events || []).slice();
+  const todayIso = new Date().toISOString().slice(0, 10);
+  let items;
+  if (eventView === 'upcoming') items = all.filter(e => (e.date_iso || '') >= todayIso).sort((a, b) => (a.date_iso + (a.time || '')).localeCompare(b.date_iso + (b.time || '')));
+  else if (eventView === 'past') items = all.filter(e => (e.date_iso || '') < todayIso).sort((a, b) => (b.date_iso + (b.time || '')).localeCompare(a.date_iso + (a.time || '')));
+  else items = all.sort((a, b) => (b.date_iso + (b.time || '')).localeCompare(a.date_iso + (a.time || '')));
+
+  if (!items.length) {
+    list.innerHTML = '';
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+  list.innerHTML = items.map(ev => renderEventCard(ev, todayIso)).join('');
+  list.querySelectorAll('.event-card').forEach(card => {
+    card.addEventListener('click', () => openEventModal(card.dataset.eventId));
+  });
+}
+
+function renderEventCard(ev, todayIso) {
+  const d = ev.date_iso ? new Date(ev.date_iso) : null;
+  const day = d ? d.getDate() : '?';
+  const month = d ? MONTHS_IS[d.getMonth()] : '';
+  const past = (ev.date_iso || '') < todayIso;
+  const participants = (ev.participant_ids || []).map(id => findEmp(id)).filter(Boolean);
+  const shown = participants.slice(0, 4);
+  const extra = participants.length - shown.length;
+  const avatarsHtml = participants.length
+    ? shown.map(e => `<span class="event-avatar" style="background:${e.avatar_color}" title="${escapeHtml(e.name)}">${initials(e.name)}</span>`).join('') + (extra > 0 ? `<span class="event-participants-more">+${extra}</span>` : '')
+    : `<span class="event-participants-more">Öllum boðið</span>`;
+  const meta = [];
+  if (ev.time) meta.push(`<span>🕐 ${escapeHtml(ev.time)}</span>`);
+  if (ev.location) meta.push(`<span>📍 ${escapeHtml(ev.location)}</span>`);
+  return `
+    <div class="event-card ${past ? 'past' : ''}" data-event-id="${ev.id}">
+      <div class="event-date-badge">
+        <div class="month">${escapeHtml(month)}</div>
+        <div class="day">${day}</div>
+        ${ev.time ? `<div class="time">${escapeHtml(ev.time)}</div>` : ''}
+      </div>
+      <div class="event-body">
+        <div class="event-title">${escapeHtml(ev.title)}</div>
+        ${meta.length ? `<div class="event-meta">${meta.join('')}</div>` : ''}
+        ${ev.description ? `<div class="event-description">${escapeHtml(ev.description)}</div>` : ''}
+        <div class="event-participants">${avatarsHtml}</div>
+      </div>
+    </div>
+  `;
+}
+
+// ---------- Scratch pad (personal notes with tagging) ----------
+let editingScratchId = null;
+let scratchDraftTags = [];
+
+function initScratch() {
+  document.getElementById('add-scratch-btn').addEventListener('click', () => openScratchModal(null));
+  document.getElementById('scratch-empty-add-btn').addEventListener('click', () => openScratchModal(null));
+  document.getElementById('scratch-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    saveScratchFromForm();
+  });
+  document.getElementById('scratch-delete-btn').addEventListener('click', () => {
+    if (!editingScratchId) return;
+    const s = state.scratchNotes.find(x => x.id === editingScratchId);
+    if (!s) return;
+    if (!confirm('Eyða þessari glósu?')) return;
+    state.scratchNotes = state.scratchNotes.filter(x => x.id !== editingScratchId);
+    save();
+    closeModal('scratch-modal');
+    renderScratch();
+  });
+  document.getElementById('scratch-tag-add').addEventListener('change', (e) => {
+    const id = e.target.value;
+    if (!id) return;
+    if (!scratchDraftTags.includes(id)) scratchDraftTags.push(id);
+    renderScratchTags();
+    populateScratchTagSelect();
+  });
+  document.getElementById('scratch-tags').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-remove-participant]');
+    if (!btn) return;
+    scratchDraftTags = scratchDraftTags.filter(id => id !== btn.dataset.removeParticipant);
+    renderScratchTags();
+    populateScratchTagSelect();
+  });
+  document.getElementById('scratch-search').addEventListener('input', renderScratch);
+}
+
+function openScratchModal(id) {
+  editingScratchId = id;
+  const sn = id ? state.scratchNotes.find(x => x.id === id) : null;
+  document.getElementById('scratch-modal-title').textContent = sn ? 'Breyta glósu' : 'Ný glósa';
+  document.getElementById('scratch-title').value = sn?.title || '';
+  document.getElementById('scratch-body').value = sn?.body || '';
+  document.getElementById('scratch-remind').value = sn?.remind_at ? toLocalDatetime(sn.remind_at) : '';
+  scratchDraftTags = sn ? [...(sn.tag_ids || [])] : [];
+  document.getElementById('scratch-delete-btn').hidden = !sn;
+  renderScratchTags();
+  populateScratchTagSelect();
+  document.getElementById('scratch-modal').hidden = false;
+  setTimeout(() => document.getElementById(sn ? 'scratch-body' : 'scratch-body').focus(), 50);
+}
+
+function populateScratchTagSelect() {
+  const el = document.getElementById('scratch-tag-add');
+  const taken = new Set(scratchDraftTags);
+  const options = ['<option value="">+ Tagga starfsmann…</option>'];
+  state.employees
+    .filter(e => !taken.has(e.id))
+    .sort((a, b) => a.name.localeCompare(b.name, 'is'))
+    .forEach(e => {
+      options.push(`<option value="${e.id}">${escapeHtml(e.name)}</option>`);
+    });
+  el.innerHTML = options.join('');
+  el.value = '';
+}
+
+function renderScratchTags() {
+  const el = document.getElementById('scratch-tags');
+  el.innerHTML = scratchDraftTags.map(id => {
+    const e = findEmp(id);
+    if (!e) return '';
+    return `<span class="participant-chip" data-emp-id="${id}">
+      <span class="chip-avatar" style="background:${e.avatar_color}">${initials(e.name)}</span>
+      <span>${escapeHtml(e.name)}</span>
+      <button type="button" class="chip-remove" data-remove-participant="${id}" title="Fjarlægja">✕</button>
+    </span>`;
+  }).join('');
+}
+
+function saveScratchFromForm() {
+  const title = document.getElementById('scratch-title').value.trim();
+  const body = document.getElementById('scratch-body').value.trim();
+  if (!body) return;
+  const remindVal = document.getElementById('scratch-remind').value;
+  const remind_at = remindVal ? new Date(remindVal).toISOString() : null;
+
+  const now = new Date().toISOString();
+  const sn = editingScratchId
+    ? state.scratchNotes.find(x => x.id === editingScratchId)
+    : { id: 'sn_' + Math.random().toString(36).slice(2, 10), created_at: now };
+  sn.title = title;
+  sn.body = body;
+  sn.remind_at = remind_at;
+  sn.reminded = sn.reminded || false;
+  sn.tag_ids = [...scratchDraftTags];
+  sn.updated_at = now;
+  if (!editingScratchId) state.scratchNotes.push(sn);
+  save();
+  closeModal('scratch-modal');
+  renderScratch();
+}
+
+function renderScratch() {
+  const list = document.getElementById('scratch-list');
+  const empty = document.getElementById('scratch-empty');
+  const q = (document.getElementById('scratch-search')?.value || '').toLowerCase().trim();
+  let items = (state.scratchNotes || []).slice();
+  if (q) items = items.filter(s => (s.title + ' ' + s.body).toLowerCase().includes(q));
+  items.sort((a, b) => (b.updated_at || b.created_at || '').localeCompare(a.updated_at || a.created_at || ''));
+  if (!items.length) {
+    list.innerHTML = '';
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+  const now = Date.now();
+  list.innerHTML = items.map(sn => renderScratchCard(sn, now)).join('');
+  list.querySelectorAll('.scratch-card').forEach(card => {
+    card.addEventListener('click', () => openScratchModal(card.dataset.scratchId));
+  });
+}
+
+function renderScratchCard(sn, now) {
+  const tags = (sn.tag_ids || []).map(id => findEmp(id)).filter(Boolean);
+  const tagHtml = tags.slice(0, 6).map(e => `
+    <span class="participant-chip" title="${escapeHtml(e.name)}">
+      <span class="chip-avatar" style="background:${e.avatar_color}">${initials(e.name)}</span>
+      <span>${escapeHtml(e.name)}</span>
+    </span>
+  `).join('');
+  let reminderHtml = '';
+  if (sn.remind_at) {
+    const rTime = new Date(sn.remind_at).getTime();
+    const overdue = rTime <= now;
+    const str = new Date(sn.remind_at).toLocaleString('is-IS', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    reminderHtml = `<span class="scratch-card-reminder${overdue ? ' overdue' : ''}">🔔 ${escapeHtml(str)}</span>`;
+  }
+  const dateStr = new Date(sn.updated_at || sn.created_at).toLocaleDateString('is-IS', { year: 'numeric', month: 'short', day: 'numeric' });
+  return `
+    <div class="scratch-card" data-scratch-id="${sn.id}">
+      ${sn.title ? `<div class="scratch-card-title">${escapeHtml(sn.title)}</div>` : ''}
+      <div class="scratch-card-body">${escapeHtml(sn.body)}</div>
+      ${tags.length ? `<div class="scratch-card-tags">${tagHtml}</div>` : ''}
+      <div class="scratch-card-footer">
+        <span>${dateStr}</span>
+        ${reminderHtml}
+      </div>
+    </div>
+  `;
+}
+
+// ---------- Extend scanReminders to include events and scratch notes ----------
+const _origScanReminders = scanReminders;
+scanReminders = function () {
+  _origScanReminders();
+  const now = Date.now();
+  let changed = false;
+  (state.events || []).forEach(ev => {
+    if (!ev.remind_at || ev.reminded) return;
+    if (new Date(ev.remind_at).getTime() > now) return;
+    ev.reminded = true; changed = true;
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try { new Notification(`Viðburður: ${ev.title}`, { body: ev.date + (ev.time ? ' · ' + ev.time : ''), tag: ev.id }); } catch (_) {}
+    }
+  });
+  (state.scratchNotes || []).forEach(sn => {
+    if (!sn.remind_at || sn.reminded) return;
+    if (new Date(sn.remind_at).getTime() > now) return;
+    sn.reminded = true; changed = true;
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try { new Notification(sn.title || 'Áminning', { body: sn.body.slice(0, 140), tag: sn.id }); } catch (_) {}
+    }
+  });
+  if (changed) save();
+};
 
 document.addEventListener('DOMContentLoaded', init);
