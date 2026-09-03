@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="style.css?v=2" />
 </head>
 <body>
   <header class="topbar">
@@ -52,7 +52,7 @@
       </div>
 
       <nav class="tabs">
-        <button class="tab active" data-tab="info">Upplýsingar</button>
+        <button class="tab active" data-tab="info">Yfirlit</button>
         <button class="tab" data-tab="notes">Minnispunktar <span class="badge" id="notes-count">0</span></button>
         <button class="tab" data-tab="docs">Skjöl <span class="badge" id="docs-count">0</span></button>
       </nav>
@@ -62,8 +62,14 @@
           <label>Deild
             <select id="d-department"><option value="">— Engin —</option></select>
           </label>
-          <label>Yfirmaður
-            <select id="d-manager"><option value="">— Enginn (efst) —</option></select>
+          <label class="span-2">Yfirmenn
+            <div class="manager-picker" id="d-managers">
+              <div class="manager-chips" id="manager-chips"></div>
+              <select id="d-manager-add" class="manager-add">
+                <option value="">+ Bæta við yfirmanni…</option>
+              </select>
+              <p class="field-hint" id="manager-hint">Fyrsti yfirmaður ræður staðsetningu í skipuriti.</p>
+            </div>
           </label>
           <label>Sími
             <input id="d-phone" type="tel" placeholder="+354 …" />
@@ -144,6 +150,6 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>

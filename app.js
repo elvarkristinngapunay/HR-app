@@ -86,6 +86,16 @@ function migrate(s) {
     delete emp.address;
     emp.birthdate = isoToDmy(emp.birthdate);
     emp.start_date = isoToDmy(emp.start_date);
+    // Legacy single manager_id → manager_ids array
+    if (!Array.isArray(emp.manager_ids)) {
+      emp.manager_ids = emp.manager_id ? [emp.manager_id] : [];
+    }
+    delete emp.manager_id;
+  });
+  // Prune manager IDs that no longer exist
+  const validIds = new Set(s.employees.map(e => e.id));
+  s.employees.forEach(emp => {
+    emp.manager_ids = emp.manager_ids.filter(id => validIds.has(id));
   });
   return s;
 }
@@ -101,7 +111,7 @@ function demo(id, name, role, manager_id, extra = {}) {
     id,
     name,
     role,
-    manager_id,
+    manager_ids: manager_id ? [manager_id] : [],
     department_id: extra.department_id || null,
     phone: extra.phone || '',
     email: extra.email || '',
@@ -169,6 +179,16 @@ function parseFlexibleDate(str) {
   return null;
 }
 
+// Auto-format a raw string into "dd.mm.yyyy" (as much as available).
+function formatDateStr(s) {
+  const digits = String(s || '').replace(/\D/g, '').slice(0, 8);
+  const parts = [];
+  if (digits.length > 0) parts.push(digits.slice(0, 2));
+  if (digits.length > 2) parts.push(digits.slice(2, 4));
+  if (digits.length > 4) parts.push(digits.slice(4, 8));
+  return parts.join('.');
+}
+
 function ageFromBirthdate(bd) {
   const d = parseFlexibleDate(bd);
   if (!d) return '';
@@ -177,6 +197,24 @@ function ageFromBirthdate(bd) {
   const m = now.getMonth() - d.getMonth();
   if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
   return age >= 0 && age < 130 ? age + ' ára' : '';
+}
+
+function bindDateInput(id, key, onValue) {
+  const input = document.getElementById(id);
+  input.addEventListener('input', () => {
+    const emp = findEmp(selectedId);
+    if (!emp) return;
+    const raw = input.value;
+    const formatted = formatDateStr(raw);
+    if (raw !== formatted) {
+      const atEnd = input.selectionStart >= raw.length;
+      input.value = formatted;
+      if (atEnd) input.setSelectionRange(formatted.length, formatted.length);
+    }
+    emp[key] = formatted;
+    if (onValue) onValue(formatted);
+    scheduleSave();
+  });
 }
 function formatDateTime(iso) {
   const d = new Date(iso);
@@ -187,10 +225,12 @@ function formatDateTime(iso) {
   });
 }
 function findEmp(id) { return state.employees.find(e => e.id === id); }
-function childrenOf(id) { return state.employees.filter(e => e.manager_id === id); }
-function roots() { return state.employees.filter(e => !e.manager_id || !findEmp(e.manager_id)); }
+function primaryManagerId(emp) { return (emp.manager_ids && emp.manager_ids[0]) || null; }
+function childrenOf(id) { return state.employees.filter(e => primaryManagerId(e) === id); }
+function roots() { return state.employees.filter(e => !primaryManagerId(e)); }
 
-// Prevent picking a manager that would create a cycle
+// Prevent picking a manager that would create a cycle in the tree.
+// Only checks descendants via the *primary* manager (which shapes the tree).
 function isDescendant(candidateId, ofId) {
   if (candidateId === ofId) return true;
   const stack = childrenOf(ofId).map(c => c.id);
@@ -271,11 +311,17 @@ function renderCard(emp, query, matchedIds) {
     ? `<div class="card-department" style="background:${hexToRgba(dept.color, 0.12)};color:${dept.color}">${escapeHtml(dept.name)}</div>`
     : '';
 
+  const extraManagers = (emp.manager_ids || []).length - 1;
+  const extraMgrHtml = extraManagers > 0
+    ? `<div class="card-extra-managers" title="Fleiri yfirmenn">+${extraManagers} yfirmaður</div>`
+    : '';
+
   card.innerHTML = `
     <div class="avatar" style="background:${emp.avatar_color}">${initials(emp.name)}</div>
     <div class="card-name">${escapeHtml(emp.name || 'Nafnlaust')}</div>
     <div class="card-role">${escapeHtml(emp.role || '—')}</div>
     ${deptHtml}
+    ${extraMgrHtml}
     <div class="card-actions">
       <button title="Bæta undirmanni við" data-action="add-child">+</button>
     </div>
@@ -357,17 +403,36 @@ function setVal(id, v) { document.getElementById(id).value = v || ''; }
 function getVal(id) { return document.getElementById(id).value; }
 
 function populateManagerSelect(emp) {
-  const el = document.getElementById('d-manager');
-  const options = ['<option value="">— Enginn (efst) —</option>'];
+  renderManagerChips(emp);
+  renderManagerAddSelect(emp);
+}
+
+function renderManagerChips(emp) {
+  const chips = document.getElementById('manager-chips');
+  const ids = emp.manager_ids || [];
+  chips.innerHTML = ids.map((id, i) => {
+    const m = findEmp(id);
+    if (!m) return '';
+    const label = escapeHtml(m.name) + (m.role ? ` · <span style="opacity:.7">${escapeHtml(m.role)}</span>` : '');
+    return `<span class="manager-chip${i === 0 ? ' primary' : ''}" data-mgr-id="${id}">
+      <span class="chip-name">${label}</span>
+      <button type="button" class="chip-remove" data-remove-mgr="${id}" title="Fjarlægja">✕</button>
+    </span>`;
+  }).join('');
+}
+
+function renderManagerAddSelect(emp) {
+  const el = document.getElementById('d-manager-add');
+  const taken = new Set(emp.manager_ids || []);
+  const options = ['<option value="">+ Bæta við yfirmanni…</option>'];
   state.employees
-    .filter(e => e.id !== emp.id && !isDescendant(e.id, emp.id))
+    .filter(e => e.id !== emp.id && !taken.has(e.id) && !isDescendant(e.id, emp.id))
     .sort((a, b) => a.name.localeCompare(b.name, 'is'))
     .forEach(e => {
-      const selAttr = emp.manager_id === e.id ? ' selected' : '';
-      options.push(`<option value="${e.id}"${selAttr}>${escapeHtml(e.name)}${e.role ? ' — ' + escapeHtml(e.role) : ''}</option>`);
+      options.push(`<option value="${e.id}">${escapeHtml(e.name)}${e.role ? ' — ' + escapeHtml(e.role) : ''}</option>`);
     });
   el.innerHTML = options.join('');
-  el.value = emp.manager_id || '';
+  el.value = '';
 }
 
 function closeDrawer() {
@@ -442,7 +507,7 @@ function addEmployee(managerId = null) {
     id: uid(),
     name: 'Nýr starfsmaður',
     role: '',
-    manager_id: managerId,
+    manager_ids: managerId ? [managerId] : [],
     department_id: managerDept || null,
     phone: '',
     email: '',
@@ -472,7 +537,15 @@ function deleteEmployee(id) {
     ? `Eyða "${emp.name}"? Undirmenn (${kids.length}) færast upp á yfirmanninn.`
     : `Eyða "${emp.name}"?`;
   if (!confirm(msg)) return;
-  kids.forEach(k => k.manager_id = emp.manager_id || null);
+  // Remove deleted employee from everyone's manager list; if that leaves
+  // a report managerless, adopt the deleted employee's own managers.
+  state.employees.forEach(other => {
+    if (!other.manager_ids?.includes(id)) return;
+    other.manager_ids = other.manager_ids.filter(m => m !== id);
+    if (other.manager_ids.length === 0 && emp.manager_ids?.length) {
+      other.manager_ids = [...emp.manager_ids];
+    }
+  });
   (emp.documents || []).forEach(d => { removeBlob(d.id).catch(() => {}); });
   state.employees = state.employees.filter(e => e.id !== id);
   save();
@@ -487,7 +560,6 @@ function bindDrawerFields() {
     ['d-role', 'role'],
     ['d-phone', 'phone'],
     ['d-email', 'email'],
-    ['d-start', 'start_date'],
     ['d-location', 'location'],
     ['d-ssn', 'ssn'],
   ];
@@ -527,25 +599,38 @@ function bindDrawerFields() {
     renderTree();
   });
 
-  document.getElementById('d-birthdate').addEventListener('input', () => {
-    const emp = findEmp(selectedId);
-    if (!emp) return;
-    emp.birthdate = getVal('d-birthdate');
-    setVal('d-age', ageFromBirthdate(emp.birthdate));
-    scheduleSave();
+  bindDateInput('d-birthdate', 'birthdate', (v) => {
+    setVal('d-age', ageFromBirthdate(v));
   });
+  bindDateInput('d-start', 'start_date');
 
-  document.getElementById('d-manager').addEventListener('change', () => {
+  document.getElementById('d-manager-add').addEventListener('change', () => {
     const emp = findEmp(selectedId);
     if (!emp) return;
-    const newMgr = getVal('d-manager') || null;
-    if (newMgr && isDescendant(newMgr, emp.id)) {
+    const newMgr = getVal('d-manager-add') || null;
+    if (!newMgr) return;
+    if (isDescendant(newMgr, emp.id)) {
       alert('Er ekki hægt: sá starfsmaður er undirmaður þessa.');
-      populateManagerSelect(emp);
+      renderManagerAddSelect(emp);
       return;
     }
-    emp.manager_id = newMgr;
+    emp.manager_ids = emp.manager_ids || [];
+    if (!emp.manager_ids.includes(newMgr)) emp.manager_ids.push(newMgr);
     save();
+    renderManagerChips(emp);
+    renderManagerAddSelect(emp);
+    renderTree();
+  });
+
+  document.getElementById('manager-chips').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-remove-mgr]');
+    if (!btn) return;
+    const emp = findEmp(selectedId);
+    if (!emp) return;
+    emp.manager_ids = (emp.manager_ids || []).filter(id => id !== btn.dataset.removeMgr);
+    save();
+    renderManagerChips(emp);
+    renderManagerAddSelect(emp);
     renderTree();
   });
 }
