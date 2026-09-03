@@ -26,6 +26,104 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 
+/* Auth overlay */
+.auth-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse at top, rgba(99, 102, 241, 0.15), transparent 60%),
+    radial-gradient(ellipse at bottom right, rgba(236, 72, 153, 0.10), transparent 55%),
+    linear-gradient(180deg, #f7f7f5, #eef0f4);
+  z-index: 100;
+  padding: 20px;
+}
+.auth-card {
+  background: white;
+  border-radius: 20px;
+  padding: 32px 28px;
+  box-shadow: 0 24px 48px -12px rgba(15, 23, 42, 0.18);
+  width: 100%;
+  max-width: 380px;
+  text-align: center;
+}
+.auth-brand {
+  width: 56px; height: 56px;
+  border-radius: 14px;
+  margin: 0 auto 16px;
+  font-size: 18px;
+}
+.auth-card h1 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  letter-spacing: -0.4px;
+}
+.auth-card .subtle { margin-bottom: 24px; }
+.auth-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: left;
+}
+.auth-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--text-2);
+}
+.auth-card input {
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  outline: none;
+  background: var(--surface-2);
+  transition: border-color .15s, box-shadow .15s, background-color .15s;
+}
+.auth-card input:focus {
+  border-color: var(--primary);
+  background: white;
+  box-shadow: 0 0 0 4px rgba(79,70,229,.12);
+}
+.auth-card .btn { margin-top: 6px; padding: 12px; font-size: 14px; }
+.auth-error {
+  margin: 4px 0 0;
+  padding: 10px 12px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-radius: 8px;
+  font-size: 12.5px;
+  text-align: center;
+}
+
+/* Loading overlay */
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: rgba(247, 247, 245, 0.9);
+  backdrop-filter: blur(8px);
+  z-index: 90;
+  color: var(--text-2);
+  font-size: 13px;
+}
+.spinner {
+  width: 36px; height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 html, body {
   margin: 0;
   padding: 0;
