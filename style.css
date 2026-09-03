@@ -650,6 +650,56 @@ body { display: flex; flex-direction: column; }
   box-shadow: 0 0 0 3px rgba(37,99,235,.12);
 }
 .note-composer button { align-self: flex-start; }
+.note-meta-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.note-meta-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-2);
+  flex: 1;
+  min-width: 130px;
+}
+.note-meta-field input {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+  color: var(--text);
+  background: white;
+  font-family: inherit;
+  transition: border-color .15s, box-shadow .15s;
+}
+.note-meta-field input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79,70,229,.12);
+}
+.note-meta-row .btn { flex-shrink: 0; }
+
+.note-reminder {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 550;
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--primary);
+}
+.note-reminder .bell { font-size: 12px; }
+.note-reminder.overdue {
+  background: rgba(225, 29, 72, 0.1);
+  color: var(--danger);
+}
 
 .notes-list {
   list-style: none;

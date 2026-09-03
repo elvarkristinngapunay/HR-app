@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=2" />
+<link rel="stylesheet" href="style.css?v=3" />
 </head>
 <body>
   <header class="topbar">
@@ -103,7 +103,17 @@
       <section class="tab-panel" data-panel="notes">
         <div class="note-composer">
           <textarea id="note-input" placeholder="Skrifaðu minnispunkt… (t.d. starfsmannasamtal, hrós, atburð)"></textarea>
-          <button class="btn primary" id="add-note-btn">Bæta við</button>
+          <div class="note-meta-row">
+            <label class="note-meta-field">
+              <span>Dagsetning</span>
+              <input id="note-date" type="text" placeholder="dd.mm.áááá" inputmode="numeric" autocomplete="off" />
+            </label>
+            <label class="note-meta-field">
+              <span>Áminning</span>
+              <input id="note-remind" type="datetime-local" />
+            </label>
+            <button class="btn primary" id="add-note-btn">Bæta við</button>
+          </div>
         </div>
         <ol class="notes-list" id="notes-list"></ol>
       </section>
@@ -150,6 +160,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>

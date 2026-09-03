@@ -455,37 +455,100 @@ function switchTab(name) {
 function renderNotes(emp) {
   const list = document.getElementById('notes-list');
   const count = document.getElementById('notes-count');
-  const notes = (emp.notes || []).slice().sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+  const notes = (emp.notes || []).slice().sort((a, b) => {
+    const ka = a.date_iso || a.created_at || '';
+    const kb = b.date_iso || b.created_at || '';
+    return kb.localeCompare(ka);
+  });
   count.textContent = notes.length;
   if (!notes.length) {
     list.innerHTML = '<div class="notes-empty">Engir minnispunktar ennþá.</div>';
     return;
   }
-  list.innerHTML = notes.map(n => `
-    <li class="note" data-note-id="${n.id}">
-      <div class="note-meta">
-        <span>${escapeHtml(formatDateTime(n.created_at))}</span>
-        <button class="note-delete" data-action="delete-note" title="Eyða">✕</button>
-      </div>
-      <div class="note-text">${escapeHtml(n.text)}</div>
-    </li>
-  `).join('');
+  const now = Date.now();
+  list.innerHTML = notes.map(n => {
+    const displayDate = n.date_iso
+      ? new Date(n.date_iso).toLocaleDateString('is-IS', { year: 'numeric', month: 'long', day: 'numeric' })
+      : formatDateTime(n.created_at);
+    let reminderHtml = '';
+    if (n.remind_at) {
+      const rTime = new Date(n.remind_at).getTime();
+      const overdue = rTime <= now;
+      const remindStr = new Date(n.remind_at).toLocaleString('is-IS', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      reminderHtml = `<div class="note-reminder${overdue ? ' overdue' : ''}" title="Áminning">
+        <span class="bell">🔔</span> ${escapeHtml(remindStr)}${overdue ? ' · komin' : ''}
+      </div>`;
+    }
+    return `
+      <li class="note" data-note-id="${n.id}">
+        <div class="note-meta">
+          <span>${escapeHtml(displayDate)}</span>
+          <button class="note-delete" data-action="delete-note" title="Eyða">✕</button>
+        </div>
+        <div class="note-text">${escapeHtml(n.text)}</div>
+        ${reminderHtml}
+      </li>
+    `;
+  }).join('');
 }
 
 function addNote() {
   const input = document.getElementById('note-input');
+  const dateInput = document.getElementById('note-date');
+  const remindInput = document.getElementById('note-remind');
   const text = input.value.trim();
   if (!text || !selectedId) return;
   const emp = findEmp(selectedId);
   emp.notes = emp.notes || [];
+
+  const parsedDate = parseFlexibleDate(dateInput.value);
+  const dateIso = parsedDate ? parsedDate.toISOString().slice(0, 10) : null;
+  const remindAt = remindInput.value ? new Date(remindInput.value).toISOString() : null;
+
   emp.notes.push({
     id: 'n_' + Math.random().toString(36).slice(2, 9),
     text,
     created_at: new Date().toISOString(),
+    date_iso: dateIso,
+    remind_at: remindAt,
+    reminded: false,
   });
   input.value = '';
+  dateInput.value = '';
+  remindInput.value = '';
   save();
   renderNotes(emp);
+  if (remindAt) ensureNotificationPermission();
+}
+
+// ---------- Reminders / notifications ----------
+function ensureNotificationPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    Notification.requestPermission().catch(() => {});
+  }
+}
+
+function scanReminders() {
+  const now = Date.now();
+  let changed = false;
+  state.employees.forEach(emp => {
+    (emp.notes || []).forEach(n => {
+      if (!n.remind_at || n.reminded) return;
+      if (new Date(n.remind_at).getTime() > now) return;
+      n.reminded = true;
+      changed = true;
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          new Notification(`Áminning: ${emp.name}`, {
+            body: n.text.slice(0, 140),
+            tag: n.id,
+          });
+        } catch (_) {}
+      }
+    });
+  });
+  if (changed) save();
 }
 
 function deleteNote(noteId) {
@@ -1010,6 +1073,24 @@ function init() {
   bindDrawerFields();
   renderTree();
   applyZoom();
+
+  // Auto-format the note date input (dd.mm.yyyy)
+  const noteDate = document.getElementById('note-date');
+  if (noteDate) {
+    noteDate.addEventListener('input', () => {
+      const raw = noteDate.value;
+      const formatted = formatDateStr(raw);
+      if (raw !== formatted) {
+        const atEnd = noteDate.selectionStart >= raw.length;
+        noteDate.value = formatted;
+        if (atEnd) noteDate.setSelectionRange(formatted.length, formatted.length);
+      }
+    });
+  }
+
+  // Fire reminders now and then every minute
+  scanReminders();
+  setInterval(scanReminders, 60_000);
 }
 
 document.addEventListener('DOMContentLoaded', init);
