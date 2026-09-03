@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=4" />
+<link rel="stylesheet" href="style.css?v=3" />
 </head>
 <body>
   <header class="topbar">
@@ -19,7 +19,6 @@
       <input type="search" id="search" placeholder="Leita eftir nafni, deild, netfangi…" />
       <button class="btn" id="depts-btn">Deildir</button>
       <button class="btn primary" id="add-employee-btn">+ Nýr starfsmaður</button>
-      <button class="icon-btn" id="signout-btn" title="Skrá út" hidden>⏻</button>
     </div>
   </header>
 
@@ -161,31 +160,6 @@
     </div>
   </div>
 
-  <!-- Login overlay -->
-  <div class="auth-overlay" id="auth-overlay" hidden>
-    <div class="auth-card">
-      <div class="brand-mark auth-brand">HR</div>
-      <h1>Starfsmenn</h1>
-      <p class="subtle">Skráðu þig inn til að halda áfram.</p>
-      <form id="auth-form">
-        <label>Netfang
-          <input type="email" id="auth-email" autocomplete="email" required />
-        </label>
-        <label>Lykilorð
-          <input type="password" id="auth-password" autocomplete="current-password" required />
-        </label>
-        <button type="submit" class="btn primary" id="auth-submit">Skrá inn</button>
-        <p class="auth-error" id="auth-error" hidden></p>
-      </form>
-    </div>
-  </div>
-
-  <!-- Loading state -->
-  <div class="loading-overlay" id="loading-overlay" hidden>
-    <div class="spinner"></div>
-    <p>Sæki gögn…</p>
-  </div>
-
-  <script type="module" src="app.js?v=5"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>

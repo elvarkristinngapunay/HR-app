@@ -1,11 +1,5 @@
-// ---------- Firebase ----------
-import {
-  auth, db,
-  collection, doc, setDoc, deleteDoc, writeBatch, onSnapshot, getDocs,
-  signInWithEmailAndPassword, onAuthStateChanged, signOut,
-} from './firebase.js';
-
 // ---------- State & storage ----------
+const STORAGE_KEY = 'hr-app.v1';
 const AVATAR_COLORS = [
   '#2563eb', '#7c3aed', '#db2777', '#ea580c', '#059669',
   '#0891b2', '#4f46e5', '#c026d3', '#dc2626', '#65a30d',
@@ -17,18 +11,18 @@ const DEPT_COLORS = [
   '#0ea5e9', '#d946ef', '#f97316', '#14b8a6', '#64748b',
 ];
 
-let state = { departments: [], employees: [] };
+let state = migrate(load());
 let selectedId = null;
 let zoom = 1;
 let saveTimer = null;
-let currentUser = null;
-let unsubEmployees = null;
-let unsubDepartments = null;
-let ready = false; // true once initial data is loaded
-const dirtyEmployees = new Set();
-const dirtyDepartments = new Set();
-const deletedEmployees = new Set();
-const deletedDepartments = new Set();
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (_) {}
+  return seed();
+}
 
 function seed() {
   const depts = [
@@ -134,58 +128,22 @@ function findDept(id) { return state.departments.find(d => d.id === id); }
 function deptName(id) { const d = findDept(id); return d ? d.name : ''; }
 function deptColor(id) { const d = findDept(id); return d ? d.color : '#94a3b8'; }
 
-// Fire-and-forget "save the whole state" — writes every currently-known
-// employee and department to Firestore. Used by all mutation paths.
 function save() {
-  state.employees.forEach(e => dirtyEmployees.add(e.id));
-  state.departments.forEach(d => dirtyDepartments.add(d.id));
-  flushToFirestore();
-}
-
-async function flushToFirestore() {
-  if (!ready || !currentUser) return;
-  const batch = writeBatch(db);
-  let ops = 0;
-  for (const id of dirtyEmployees) {
-    const emp = state.employees.find(e => e.id === id);
-    if (emp) { batch.set(doc(db, 'employees', id), emp); ops++; }
-  }
-  for (const id of deletedEmployees) {
-    batch.delete(doc(db, 'employees', id)); ops++;
-  }
-  for (const id of dirtyDepartments) {
-    const d = state.departments.find(x => x.id === id);
-    if (d) { batch.set(doc(db, 'departments', id), d); ops++; }
-  }
-  for (const id of deletedDepartments) {
-    batch.delete(doc(db, 'departments', id)); ops++;
-  }
-  dirtyEmployees.clear();
-  dirtyDepartments.clear();
-  deletedEmployees.clear();
-  deletedDepartments.clear();
-  if (ops === 0) return;
   try {
-    await batch.commit();
-  } catch (err) {
-    console.error('Firestore write failed:', err);
-  }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (_) {}
 }
 
 function scheduleSave() {
   const status = document.getElementById('save-status');
-  if (status) {
-    status.textContent = 'Vistar…';
-    status.className = 'save-status saving';
-  }
+  status.textContent = 'Vistar…';
+  status.className = 'save-status saving';
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     save();
-    if (status) {
-      status.textContent = 'Vistað';
-      status.className = 'save-status saved';
-      setTimeout(() => { status.className = 'save-status'; }, 1200);
-    }
+    status.textContent = 'Vistað';
+    status.className = 'save-status saved';
+    setTimeout(() => { status.className = 'save-status'; }, 1200);
   }, 300);
 }
 
@@ -653,7 +611,6 @@ function deleteEmployee(id) {
   });
   (emp.documents || []).forEach(d => { removeBlob(d.id).catch(() => {}); });
   state.employees = state.employees.filter(e => e.id !== id);
-  deletedEmployees.add(id);
   save();
   closeDrawer();
   renderTree();
@@ -847,12 +804,12 @@ async function downloadDoc(docId, name) {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
-async function deletePdf(docId) {
+async function deleteDoc(docId) {
   if (!selectedId) return;
   const emp = findEmp(selectedId);
-  const docItem = (emp.documents || []).find(d => d.id === docId);
-  if (!docItem) return;
-  if (!confirm(`Eyða skjalinu "${docItem.name}"?`)) return;
+  const doc = (emp.documents || []).find(d => d.id === docId);
+  if (!doc) return;
+  if (!confirm(`Eyða skjalinu "${doc.name}"?`)) return;
   try { await removeBlob(docId); } catch (_) {}
   emp.documents = emp.documents.filter(d => d.id !== docId);
   save();
@@ -930,11 +887,8 @@ function deleteDepartment(id) {
     ? `Eyða deildinni "${d.name}"? ${count} starfsmenn missa deild.`
     : `Eyða deildinni "${d.name}"?`;
   if (!confirm(msg)) return;
-  state.employees.forEach(e => {
-    if (e.department_id === id) { e.department_id = null; dirtyEmployees.add(e.id); }
-  });
+  state.employees.forEach(e => { if (e.department_id === id) e.department_id = null; });
   state.departments = state.departments.filter(x => x.id !== id);
-  deletedDepartments.add(id);
   save();
   renderTree();
   renderDeptList();
@@ -1050,10 +1004,10 @@ function init() {
     if (!item) return;
     const id = item.dataset.docId;
     const emp = findEmp(selectedId);
-    const pdf = emp && (emp.documents || []).find(d => d.id === id);
+    const doc = emp && (emp.documents || []).find(d => d.id === id);
     if (e.target.closest('[data-action=open]')) openDoc(id);
-    else if (e.target.closest('[data-action=download]')) downloadDoc(id, pdf?.name || 'skjal.pdf');
-    else if (e.target.closest('[data-action=delete]')) deletePdf(id);
+    else if (e.target.closest('[data-action=download]')) downloadDoc(id, doc?.name || 'skjal.pdf');
+    else if (e.target.closest('[data-action=delete]')) deleteDoc(id);
   });
 
   document.getElementById('search').addEventListener('input', renderTree);
@@ -1137,100 +1091,6 @@ function init() {
   // Fire reminders now and then every minute
   scanReminders();
   setInterval(scanReminders, 60_000);
-
-  wireAuth();
-}
-
-// ---------- Auth & sync ----------
-function wireAuth() {
-  const overlay = document.getElementById('auth-overlay');
-  const loading = document.getElementById('loading-overlay');
-  const form = document.getElementById('auth-form');
-  const err = document.getElementById('auth-error');
-  const submit = document.getElementById('auth-submit');
-  const signoutBtn = document.getElementById('signout-btn');
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    err.hidden = true;
-    submit.disabled = true;
-    submit.textContent = 'Skrái inn…';
-    try {
-      const email = document.getElementById('auth-email').value.trim();
-      const pw = document.getElementById('auth-password').value;
-      await signInWithEmailAndPassword(auth, email, pw);
-    } catch (e2) {
-      err.textContent = friendlyAuthError(e2);
-      err.hidden = false;
-    } finally {
-      submit.disabled = false;
-      submit.textContent = 'Skrá inn';
-    }
-  });
-
-  signoutBtn.addEventListener('click', async () => {
-    if (!confirm('Skrá út?')) return;
-    stopDataSync();
-    await signOut(auth);
-  });
-
-  onAuthStateChanged(auth, (user) => {
-    currentUser = user;
-    if (user) {
-      overlay.hidden = true;
-      signoutBtn.hidden = false;
-      loading.hidden = false;
-      startDataSync().finally(() => { loading.hidden = true; });
-    } else {
-      overlay.hidden = false;
-      signoutBtn.hidden = true;
-      stopDataSync();
-      state = { departments: [], employees: [] };
-      renderTree();
-    }
-  });
-}
-
-function friendlyAuthError(e) {
-  const code = e && e.code || '';
-  if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
-    return 'Rangt netfang eða lykilorð.';
-  }
-  if (code.includes('too-many-requests')) return 'Of margar tilraunir. Prófaðu aftur eftir smá stund.';
-  if (code.includes('network')) return 'Netvilla — athugaðu tengingu.';
-  return e && e.message || 'Ekki tókst að skrá inn.';
-}
-
-async function startDataSync() {
-  // Initial load
-  const [empSnap, deptSnap] = await Promise.all([
-    getDocs(collection(db, 'employees')),
-    getDocs(collection(db, 'departments')),
-  ]);
-  state.employees = empSnap.docs.map(d => d.data());
-  state.departments = deptSnap.docs.map(d => d.data());
-  ready = true;
-  renderTree();
-
-  // Realtime subscriptions
-  unsubEmployees = onSnapshot(collection(db, 'employees'), (snap) => {
-    if (snap.metadata.hasPendingWrites) return; // our own local write echo
-    state.employees = snap.docs.map(d => d.data());
-    renderTree();
-    if (selectedId && findEmp(selectedId)) openDrawer(selectedId);
-  });
-  unsubDepartments = onSnapshot(collection(db, 'departments'), (snap) => {
-    if (snap.metadata.hasPendingWrites) return;
-    state.departments = snap.docs.map(d => d.data());
-    renderTree();
-    if (selectedId) populateDeptSelect(findEmp(selectedId));
-  });
-}
-
-function stopDataSync() {
-  ready = false;
-  if (unsubEmployees) { unsubEmployees(); unsubEmployees = null; }
-  if (unsubDepartments) { unsubDepartments(); unsubDepartments = null; }
 }
 
 document.addEventListener('DOMContentLoaded', init);
