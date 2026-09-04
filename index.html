@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=10" />
+<link rel="stylesheet" href="style.css?v=11" />
 </head>
 <body>
   <div class="app">
@@ -242,11 +242,11 @@
     </div>
   </div>
 
-  <!-- Event modal -->
-  <div class="modal" id="event-modal" hidden>
+  <!-- Event panel (fullscreen drawer) -->
+  <div class="modal event-panel-modal" id="event-modal" hidden>
     <div class="modal-scrim" data-close-modal></div>
-    <div class="modal-card modal-card-wide">
-      <header class="modal-header">
+    <div class="event-panel">
+      <header class="modal-header event-panel-header">
         <div>
           <h2 id="event-modal-title">Nýr viðburður</h2>
           <p class="subtle">Fylltu inn upplýsingar um viðburðinn</p>
@@ -357,14 +357,17 @@
                 <p class="field-hint" id="budget-summary">Enginn kostnaður skráður</p>
               </div>
               <div class="budget-total">
-                <label>Áætlun <input type="number" id="event-budget" placeholder="0" min="0" step="1000" /></label>
+                <label>Heildar-áætlun <input type="number" id="event-budget" placeholder="0" min="0" step="1000" /> kr.</label>
               </div>
             </div>
-            <ul class="budget-list" id="budget-list"></ul>
-            <div class="budget-add">
-              <input type="text" id="budget-add-label" placeholder="Lýsing (t.d. veitingar)" />
-              <input type="number" id="budget-add-amount" placeholder="Kostnaður" min="0" step="100" />
-              <button type="button" class="btn" id="budget-add-btn">+ Bæta við</button>
+            <div class="budget-progress-bar" id="budget-progress">
+              <div class="budget-progress-fill" id="budget-progress-fill"></div>
+            </div>
+            <div class="budget-categories" id="budget-categories"></div>
+            <div class="budget-add-category">
+              <input type="text" id="new-category-name" placeholder="Nýr flokkur (t.d. Skraut)" />
+              <input type="number" id="new-category-budget" placeholder="Áætlun" min="0" step="1000" />
+              <button type="button" class="btn" id="add-category-btn">+ Bæta við flokki</button>
             </div>
           </div>
         </section>
@@ -443,6 +446,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>

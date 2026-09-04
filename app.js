@@ -1141,7 +1141,8 @@ let eventDraftTasks = [];
 let eventDraftRsvps = {};
 let eventDraftExternalGuests = [];
 let eventDraftBudget = null;
-let eventDraftBudgetItems = [];
+let eventDraftBudgetItems = []; // legacy flat items — migrated to categories at load
+let eventDraftBudgetCategories = [];
 let eventDraftTimeline = [];
 
 function initEvents() {
@@ -1243,38 +1244,80 @@ function initEvents() {
     b.addEventListener('click', () => switchEventTab(b.dataset.eventTab));
   });
 
-  // Budget
+  // Budget (categorised)
   document.getElementById('event-budget').addEventListener('input', (e) => {
     eventDraftBudget = e.target.value ? Number(e.target.value) : null;
-    renderBudget();
-    autoSaveEventIfEditing();
-  });
-  document.getElementById('budget-add-btn').addEventListener('click', addBudgetItem);
-  document.getElementById('budget-add-label').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); addBudgetItem(); }
-  });
-  document.getElementById('budget-add-amount').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); addBudgetItem(); }
-  });
-  const budgetList = document.getElementById('budget-list');
-  budgetList.addEventListener('click', (e) => {
-    const item = e.target.closest('[data-budget-id]');
-    if (!item) return;
-    if (e.target.closest('[data-action=remove]')) {
-      eventDraftBudgetItems = eventDraftBudgetItems.filter(b => b.id !== item.dataset.budgetId);
-      renderBudget();
-      autoSaveEventIfEditing();
-    }
-  });
-  budgetList.addEventListener('input', (e) => {
-    const item = e.target.closest('[data-budget-id]');
-    if (!item) return;
-    const b = eventDraftBudgetItems.find(x => x.id === item.dataset.budgetId);
-    if (!b) return;
-    if (e.target.classList.contains('budget-label')) b.label = e.target.value;
-    else if (e.target.classList.contains('budget-amount')) b.amount = Number(e.target.value) || 0;
     updateBudgetSummary();
     autoSaveEventIfEditing();
+  });
+  document.getElementById('add-category-btn').addEventListener('click', addBudgetCategory);
+  document.getElementById('new-category-name').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); addBudgetCategory(); }
+  });
+  document.getElementById('new-category-budget').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); addBudgetCategory(); }
+  });
+  const budgetCats = document.getElementById('budget-categories');
+  budgetCats.addEventListener('click', (e) => {
+    const catEl = e.target.closest('[data-category-id]');
+    if (!catEl) return;
+    const cat = eventDraftBudgetCategories.find(c => c.id === catEl.dataset.categoryId);
+    if (!cat) return;
+    const headerClick = e.target.closest('.budget-category-header');
+    if (e.target.closest('[data-action=delete-category]')) {
+      e.stopPropagation();
+      if (!confirm(`Eyða flokknum "${cat.name}"?`)) return;
+      eventDraftBudgetCategories = eventDraftBudgetCategories.filter(c => c.id !== cat.id);
+      renderBudget();
+      autoSaveEventIfEditing();
+    } else if (e.target.closest('[data-action=delete-item]')) {
+      const itemEl = e.target.closest('[data-item-id]');
+      cat.items = cat.items.filter(i => i.id !== itemEl.dataset.itemId);
+      renderBudget();
+      autoSaveEventIfEditing();
+    } else if (e.target.closest('[data-action=add-item]')) {
+      const nameEl = catEl.querySelector('.new-item-name');
+      const amtEl = catEl.querySelector('.new-item-amount');
+      const name = nameEl.value.trim();
+      if (!name) return;
+      cat.items.push({
+        id: 'bi_' + Math.random().toString(36).slice(2, 10),
+        name,
+        amount: Number(amtEl.value) || 0,
+      });
+      nameEl.value = ''; amtEl.value = '';
+      renderBudget();
+      autoSaveEventIfEditing();
+      const openCat = document.querySelector(`.budget-category[data-category-id="${cat.id}"]`);
+      if (openCat) openCat.querySelector('.new-item-name').focus();
+    } else if (headerClick && !e.target.closest('input, button')) {
+      cat.open = !cat.open;
+      renderBudget();
+    }
+  });
+  budgetCats.addEventListener('input', (e) => {
+    const catEl = e.target.closest('[data-category-id]');
+    if (!catEl) return;
+    const cat = eventDraftBudgetCategories.find(c => c.id === catEl.dataset.categoryId);
+    if (!cat) return;
+    if (e.target.classList.contains('budget-category-name')) cat.name = e.target.value;
+    else if (e.target.classList.contains('budget-category-estimated')) cat.estimated = e.target.value ? Number(e.target.value) : null;
+    else if (e.target.classList.contains('item-name') || e.target.classList.contains('item-amount')) {
+      const itemEl = e.target.closest('[data-item-id]');
+      const item = cat.items.find(i => i.id === itemEl.dataset.itemId);
+      if (!item) return;
+      if (e.target.classList.contains('item-name')) item.name = e.target.value;
+      else item.amount = Number(e.target.value) || 0;
+    }
+    updateBudgetSummary();
+    autoSaveEventIfEditing();
+  });
+  budgetCats.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.target.classList.contains('new-item-name') || e.target.classList.contains('new-item-amount'))) {
+      e.preventDefault();
+      const catEl = e.target.closest('[data-category-id]');
+      catEl.querySelector('[data-action=add-item]').click();
+    }
   });
 
   // Timeline
@@ -1445,7 +1488,8 @@ function openEventModal(id) {
   eventDraftRsvps = ev ? { ...(ev.rsvps || {}) } : {};
   eventDraftExternalGuests = ev ? (ev.external_guests || []).map(g => ({ ...g })) : [];
   eventDraftBudget = ev ? (ev.budget ?? null) : null;
-  eventDraftBudgetItems = ev ? (ev.budget_items || []).map(b => ({ ...b })) : [];
+  eventDraftBudgetCategories = migrateBudgetCategories(ev);
+  eventDraftBudgetItems = [];
   eventDraftTimeline = ev ? (ev.timeline_items || []).map(t => ({ ...t })) : [];
   document.getElementById('event-delete-btn').hidden = !ev;
   document.getElementById('event-budget').value = eventDraftBudget ?? '';
@@ -1585,68 +1629,125 @@ function showToast(msg) {
   setTimeout(() => t.remove(), 2200);
 }
 
-function addBudgetItem() {
-  const label = document.getElementById('budget-add-label').value.trim();
-  const amount = Number(document.getElementById('budget-add-amount').value) || 0;
-  if (!label) return;
-  eventDraftBudgetItems.push({
-    id: 'b_' + Math.random().toString(36).slice(2, 10),
-    label,
-    amount,
-  });
-  document.getElementById('budget-add-label').value = '';
-  document.getElementById('budget-add-amount').value = '';
-  renderBudget();
-  autoSaveEventIfEditing();
-  document.getElementById('budget-add-label').focus();
+function migrateBudgetCategories(ev) {
+  if (!ev) return [];
+  if (Array.isArray(ev.budget_categories) && ev.budget_categories.length) {
+    return ev.budget_categories.map(c => ({
+      ...c,
+      items: (c.items || []).map(i => ({ ...i })),
+      open: c.open ?? false,
+    }));
+  }
+  // Legacy flat items → wrap in one "Almennt" category
+  const legacy = ev.budget_items || [];
+  if (!legacy.length) return [];
+  return [{
+    id: 'bc_legacy',
+    name: 'Almennt',
+    estimated: null,
+    open: true,
+    items: legacy.map(b => ({
+      id: b.id || ('bi_' + Math.random().toString(36).slice(2, 10)),
+      name: b.label || b.name || '',
+      amount: b.amount || 0,
+    })),
+  }];
 }
 
+function addBudgetCategory() {
+  const nameEl = document.getElementById('new-category-name');
+  const estEl = document.getElementById('new-category-budget');
+  const name = nameEl.value.trim();
+  if (!name) return;
+  eventDraftBudgetCategories.push({
+    id: 'bc_' + Math.random().toString(36).slice(2, 10),
+    name,
+    estimated: estEl.value ? Number(estEl.value) : null,
+    items: [],
+    open: true,
+  });
+  nameEl.value = ''; estEl.value = '';
+  renderBudget();
+  autoSaveEventIfEditing();
+  nameEl.focus();
+}
+
+function categoryActual(cat) {
+  return cat.items.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+}
+
+function totalActual() {
+  return eventDraftBudgetCategories.reduce((s, c) => s + categoryActual(c), 0);
+}
+
+function fmtKr(n) { return (n || 0).toLocaleString('is-IS'); }
+
 function renderBudget() {
-  const list = document.getElementById('budget-list');
-  list.innerHTML = eventDraftBudgetItems.map(b => `
-    <li class="budget-item" data-budget-id="${b.id}">
-      <input class="budget-label" value="${escapeHtml(b.label)}" />
-      <input class="budget-amount" type="number" value="${b.amount || 0}" min="0" step="100" />
-      <button type="button" class="budget-item-remove" data-action="remove" title="Eyða">✕</button>
-    </li>
-  `).join('');
+  const el = document.getElementById('budget-categories');
+  el.innerHTML = eventDraftBudgetCategories.map(cat => {
+    const actual = categoryActual(cat);
+    const over = cat.estimated && actual > cat.estimated;
+    const itemsHtml = cat.items.map(i => `
+      <li class="budget-item" data-item-id="${i.id}">
+        <input class="budget-label item-name" value="${escapeHtml(i.name)}" />
+        <input class="budget-amount item-amount" type="number" value="${i.amount || 0}" min="0" step="100" />
+        <button type="button" class="budget-item-remove" data-action="delete-item" title="Eyða">✕</button>
+      </li>
+    `).join('');
+    return `
+      <div class="budget-category ${cat.open ? 'open' : ''}" data-category-id="${cat.id}">
+        <div class="budget-category-header">
+          <button type="button" class="budget-category-toggle" title="Opna/loka">▸</button>
+          <input class="budget-category-name" value="${escapeHtml(cat.name)}" />
+          <div class="budget-category-numbers">
+            <input class="budget-category-estimated" type="number" value="${cat.estimated ?? ''}" placeholder="áætlun" min="0" step="1000" />
+            <span class="budget-category-actual ${over ? 'over' : ''}">${fmtKr(actual)} kr.</span>
+          </div>
+          <button type="button" class="budget-category-delete" data-action="delete-category" title="Eyða flokki">✕</button>
+        </div>
+        <div class="budget-category-body">
+          <ul class="budget-list">${itemsHtml}</ul>
+          <div class="budget-add-item-row">
+            <input type="text" class="new-item-name" placeholder="Nýr hlutur" />
+            <input type="number" class="new-item-amount" placeholder="kr." min="0" step="100" />
+            <button type="button" class="btn" data-action="add-item">+</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
   updateBudgetSummary();
-  document.getElementById('planning-count-badge').textContent =
-    eventDraftTasks.length + eventDraftBudgetItems.length;
+  const totalItems = eventDraftBudgetCategories.reduce((s, c) => s + c.items.length, 0);
+  const badge = document.getElementById('planning-count-badge');
+  if (badge) badge.textContent = eventDraftTasks.length + totalItems;
 }
 
 function updateBudgetSummary() {
-  const spent = eventDraftBudgetItems.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+  const spent = totalActual();
   const budget = eventDraftBudget;
   const summary = document.getElementById('budget-summary');
-  const fmt = n => n.toLocaleString('is-IS');
-  let text;
-  if (!eventDraftBudgetItems.length && !budget) text = 'Enginn kostnaður skráður';
-  else if (budget) {
-    const over = spent > budget;
-    text = `${fmt(spent)} kr. af ${fmt(budget)} kr. ${over ? '· umfram!' : `(${Math.round((spent / budget) * 100)}%)`}`;
-    summary.classList.toggle('over', over);
-  } else {
-    text = `Samtals ${fmt(spent)} kr.`;
+  const bar = document.getElementById('budget-progress');
+  const fill = document.getElementById('budget-progress-fill');
+  const hasAnyItems = eventDraftBudgetCategories.some(c => c.items.length);
+  if (!hasAnyItems && !budget) {
+    summary.textContent = 'Enginn kostnaður skráður';
     summary.classList.remove('over');
+    if (bar) bar.style.display = 'none';
+    return;
   }
-  summary.textContent = text;
-
-  // Add/update progress bar under summary if budget set
-  let bar = document.querySelector('.budget-progress-bar');
   if (budget) {
-    if (!bar) {
-      bar = document.createElement('div');
-      bar.className = 'budget-progress-bar';
-      bar.innerHTML = '<div class="budget-progress-fill"></div>';
-      document.getElementById('budget-list').parentElement.insertBefore(bar, document.getElementById('budget-list'));
+    const over = spent > budget;
+    summary.textContent = `${fmtKr(spent)} kr. af ${fmtKr(budget)} kr. ${over ? '· umfram!' : `(${Math.round((spent / budget) * 100)}%)`}`;
+    summary.classList.toggle('over', over);
+    if (bar) {
+      bar.style.display = '';
+      fill.style.width = Math.min(100, (spent / budget) * 100) + '%';
+      fill.classList.toggle('over', over);
     }
-    const pct = Math.min(100, budget ? (spent / budget) * 100 : 0);
-    const fill = bar.querySelector('.budget-progress-fill');
-    fill.style.width = pct + '%';
-    fill.classList.toggle('over', spent > budget);
-  } else if (bar) {
-    bar.remove();
+  } else {
+    summary.textContent = `Samtals ${fmtKr(spent)} kr.`;
+    summary.classList.remove('over');
+    if (bar) bar.style.display = 'none';
   }
 }
 
@@ -1690,7 +1791,7 @@ function autoSaveEventIfEditing() {
   ev.external_guests = eventDraftExternalGuests.map(g => ({ ...g }));
   ev.tasks = deepCloneTasks(eventDraftTasks);
   ev.budget = eventDraftBudget;
-  ev.budget_items = eventDraftBudgetItems.map(b => ({ ...b }));
+  ev.budget_categories = eventDraftBudgetCategories.map(c => ({ ...c, items: c.items.map(i => ({ ...i })) })); delete ev.budget_items;
   ev.timeline_items = eventDraftTimeline.map(t => ({ ...t }));
   save();
   renderEvents();
@@ -1779,7 +1880,7 @@ function saveEventFromForm() {
   ev.external_guests = eventDraftExternalGuests.map(g => ({ ...g }));
   ev.tasks = deepCloneTasks(eventDraftTasks);
   ev.budget = eventDraftBudget;
-  ev.budget_items = eventDraftBudgetItems.map(b => ({ ...b }));
+  ev.budget_categories = eventDraftBudgetCategories.map(c => ({ ...c, items: c.items.map(i => ({ ...i })) })); delete ev.budget_items;
   ev.timeline_items = eventDraftTimeline.map(t => ({ ...t }));
   if (!editingEventId) state.events.push(ev);
   save();
