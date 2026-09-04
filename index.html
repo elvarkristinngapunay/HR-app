@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=6" />
+<link rel="stylesheet" href="style.css?v=7" />
 </head>
 <body>
   <div class="app">
@@ -290,6 +290,23 @@
             </div>
           </label>
         </div>
+
+        <div class="tasks-section">
+          <div class="tasks-header">
+            <div>
+              <h3>Verkefni</h3>
+              <p class="field-hint" id="tasks-progress">Engin verkefni ennþá</p>
+            </div>
+            <div class="tasks-progress-bar">
+              <div class="tasks-progress-fill" id="tasks-progress-fill"></div>
+            </div>
+          </div>
+          <ul class="tasks-list" id="tasks-list"></ul>
+          <div class="task-add" id="task-add-form">
+            <input type="text" id="task-add-input" placeholder="+ Bæta við verkefni og ýttu á Enter" />
+          </div>
+        </div>
+
         <div class="modal-footer">
           <button type="button" class="btn ghost danger" id="event-delete-btn" hidden>Eyða</button>
           <div class="footer-right">
@@ -351,6 +368,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>

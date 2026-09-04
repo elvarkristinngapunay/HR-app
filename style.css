@@ -1470,3 +1470,173 @@ body { display: flex; flex-direction: column; }
   box-shadow: 0 0 0 3px rgba(79,70,229,.12);
 }
 .scratch-mentions { display: none; }
+
+/* ============== Event tasks (Asana-style checklist) ============== */
+.tasks-section {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.tasks-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.tasks-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text);
+  letter-spacing: -0.2px;
+}
+.tasks-header .field-hint { margin-top: 2px; }
+.tasks-progress-bar {
+  width: 120px;
+  height: 6px;
+  background: var(--surface-2);
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.tasks-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  border-radius: 3px;
+  width: 0;
+  transition: width .3s ease;
+}
+.tasks-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.task-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  transition: background-color .12s;
+}
+.task-item:hover { background: var(--surface-2); }
+.task-item.done .task-title { text-decoration: line-through; color: var(--text-3); }
+.task-checkbox {
+  width: 18px; height: 18px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 50%;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color .12s, background-color .12s;
+  background: white;
+}
+.task-checkbox:hover { border-color: var(--primary); }
+.task-item.done .task-checkbox {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+.task-item.done .task-checkbox::after {
+  content: "✓";
+  font-size: 11px;
+  font-weight: 700;
+}
+.task-title {
+  flex: 1;
+  font-size: 13.5px;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 4px 6px;
+  border-radius: 6px;
+  min-width: 0;
+  font-family: inherit;
+}
+.task-title:focus { background: var(--surface-2); }
+.task-assignee-select, .task-due-input {
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+  outline: none;
+  cursor: pointer;
+  font-family: inherit;
+  max-width: 130px;
+  transition: border-color .12s, background-color .12s;
+}
+.task-assignee-select:hover, .task-due-input:hover {
+  border-color: var(--border);
+  background: var(--surface-2);
+}
+.task-assignee-select:focus, .task-due-input:focus {
+  border-color: var(--primary);
+  background: white;
+  box-shadow: 0 0 0 2px rgba(79,70,229,.12);
+}
+.task-due-input.overdue { color: var(--danger); font-weight: 600; }
+.task-delete {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity .12s;
+}
+.task-item:hover .task-delete { opacity: 1; }
+.task-delete:hover { color: var(--danger); background: var(--danger-soft); }
+
+.task-add input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text);
+  background: transparent;
+  outline: none;
+  transition: border-color .12s, background-color .12s;
+}
+.task-add input:focus, .task-add input:hover {
+  border-color: var(--primary);
+  background: white;
+  border-style: solid;
+}
+
+/* Progress indicator on event card */
+.event-progress {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.event-progress-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--surface-2);
+  border-radius: 2px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.event-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #059669);
+  border-radius: 2px;
+  transition: width .3s ease;
+}
+.event-progress-fill.pending { background: linear-gradient(90deg, #6366f1, #8b5cf6); }
+.event-progress-count { font-weight: 600; color: var(--text-2); flex-shrink: 0; }

@@ -1136,6 +1136,7 @@ const MONTHS_IS = ['jan', 'feb', 'mar', 'apr', 'maí', 'jún', 'júl', 'ágú', 
 let editingEventId = null;
 let eventView = 'upcoming';
 let eventDraftParticipants = [];
+let eventDraftTasks = [];
 
 function initEvents() {
   document.getElementById('add-event-btn').addEventListener('click', () => openEventModal(null));
@@ -1203,6 +1204,85 @@ function initEvents() {
     refreshEventParticipantUI();
     e.target.value = '';
   });
+
+  // Tasks
+  const tasksList = document.getElementById('tasks-list');
+  const addInput = document.getElementById('task-add-input');
+  addInput.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const title = addInput.value.trim();
+    if (!title) return;
+    eventDraftTasks.push({
+      id: 't_' + Math.random().toString(36).slice(2, 10),
+      title,
+      done: false,
+      assignee_id: '',
+      due_date: '',
+    });
+    addInput.value = '';
+    renderTaskList();
+    autoSaveTasksIfEditing();
+  });
+  tasksList.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-task-id]');
+    if (!item) return;
+    const t = eventDraftTasks.find(x => x.id === item.dataset.taskId);
+    if (!t) return;
+    if (e.target.closest('[data-action=toggle]')) {
+      t.done = !t.done;
+      renderTaskList();
+      autoSaveTasksIfEditing();
+    } else if (e.target.closest('[data-action=delete]')) {
+      eventDraftTasks = eventDraftTasks.filter(x => x.id !== t.id);
+      renderTaskList();
+      autoSaveTasksIfEditing();
+    }
+  });
+  tasksList.addEventListener('change', (e) => {
+    const item = e.target.closest('[data-task-id]');
+    if (!item) return;
+    const t = eventDraftTasks.find(x => x.id === item.dataset.taskId);
+    if (!t) return;
+    if (e.target.closest('[data-action=assign]')) {
+      t.assignee_id = e.target.value;
+      autoSaveTasksIfEditing();
+    } else if (e.target.closest('[data-action=due]')) {
+      const formatted = formatDateStr(e.target.value);
+      e.target.value = formatted;
+      t.due_date = formatted;
+      renderTaskList();
+      autoSaveTasksIfEditing();
+    }
+  });
+  tasksList.addEventListener('input', (e) => {
+    const item = e.target.closest('[data-task-id]');
+    if (!item) return;
+    const t = eventDraftTasks.find(x => x.id === item.dataset.taskId);
+    if (!t) return;
+    if (e.target.closest('[data-action=rename]')) {
+      t.title = e.target.value;
+      autoSaveTasksIfEditing();
+    } else if (e.target.closest('[data-action=due]')) {
+      const raw = e.target.value;
+      const formatted = formatDateStr(raw);
+      if (raw !== formatted) {
+        const atEnd = e.target.selectionStart >= raw.length;
+        e.target.value = formatted;
+        if (atEnd) e.target.setSelectionRange(formatted.length, formatted.length);
+      }
+      t.due_date = formatted;
+    }
+  });
+}
+
+function autoSaveTasksIfEditing() {
+  if (!editingEventId) return;
+  const ev = state.events.find(x => x.id === editingEventId);
+  if (!ev) return;
+  ev.tasks = deepCloneTasks(eventDraftTasks);
+  save();
+  renderEvents();
 }
 
 function refreshEventParticipantUI() {
@@ -1253,10 +1333,16 @@ function openEventModal(id) {
   document.getElementById('event-description').value = ev?.description || '';
   document.getElementById('event-remind').value = ev?.remind_at ? toLocalDatetime(ev.remind_at) : '';
   eventDraftParticipants = ev ? [...(ev.participant_ids || [])] : [];
+  eventDraftTasks = ev ? deepCloneTasks(ev.tasks || []) : [];
   document.getElementById('event-delete-btn').hidden = !ev;
   refreshEventParticipantUI();
+  renderTaskList();
   document.getElementById('event-modal').hidden = false;
   setTimeout(() => document.getElementById('event-title').focus(), 50);
+}
+
+function deepCloneTasks(tasks) {
+  return tasks.map(t => ({ ...t }));
 }
 
 function toLocalDatetime(iso) {
@@ -1294,6 +1380,44 @@ function renderEventParticipants() {
   }).join('');
 }
 
+function renderTaskList() {
+  const list = document.getElementById('tasks-list');
+  const progressText = document.getElementById('tasks-progress');
+  const progressFill = document.getElementById('tasks-progress-fill');
+  const total = eventDraftTasks.length;
+  const done = eventDraftTasks.filter(t => t.done).length;
+  progressText.textContent = total
+    ? `${done} af ${total} lokið`
+    : 'Engin verkefni ennþá';
+  progressFill.style.width = total ? `${(done / total) * 100}%` : '0';
+  if (!total) { list.innerHTML = ''; return; }
+
+  const assigneeOptions = state.employees
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name, 'is'))
+    .map(e => `<option value="${e.id}">${escapeHtml(e.name)}</option>`)
+    .join('');
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  list.innerHTML = eventDraftTasks.map(t => {
+    const dueIso = t.due_date ? (parseFlexibleDate(t.due_date)?.toISOString().slice(0, 10) || '') : '';
+    const overdue = !t.done && dueIso && dueIso < todayIso;
+    return `
+      <li class="task-item ${t.done ? 'done' : ''}" data-task-id="${t.id}">
+        <button type="button" class="task-checkbox" data-action="toggle" title="Merkja"></button>
+        <input class="task-title" value="${escapeHtml(t.title)}" data-action="rename" />
+        <select class="task-assignee-select" data-action="assign">
+          <option value="">— Enginn —</option>
+          ${assigneeOptions.replace(`value="${t.assignee_id}"`, `value="${t.assignee_id}" selected`)}
+        </select>
+        <input class="task-due-input ${overdue ? 'overdue' : ''}" type="text" value="${escapeHtml(t.due_date || '')}" placeholder="dd.mm.áá" data-action="due" />
+        <button type="button" class="task-delete" data-action="delete" title="Eyða">✕</button>
+      </li>
+    `;
+  }).join('');
+}
+
 function saveEventFromForm() {
   const title = document.getElementById('event-title').value.trim();
   const date = document.getElementById('event-date').value.trim();
@@ -1319,6 +1443,7 @@ function saveEventFromForm() {
   ev.remind_at = remind_at;
   ev.reminded = ev.reminded || false;
   ev.participant_ids = [...eventDraftParticipants];
+  ev.tasks = deepCloneTasks(eventDraftTasks);
   if (!editingEventId) state.events.push(ev);
   save();
   closeModal('event-modal');
@@ -1365,6 +1490,19 @@ function renderEventCard(ev, todayIso) {
   const meta = [];
   if (ev.time) meta.push(`<span>🕐 ${escapeHtml(ev.time)}</span>`);
   if (ev.location) meta.push(`<span>📍 ${escapeHtml(ev.location)}</span>`);
+  const tasks = ev.tasks || [];
+  const doneCount = tasks.filter(t => t.done).length;
+  const totalCount = tasks.length;
+  const complete = totalCount > 0 && doneCount === totalCount;
+  const pct = totalCount ? (doneCount / totalCount) * 100 : 0;
+  const progressHtml = totalCount ? `
+    <div class="event-progress">
+      <div class="event-progress-bar">
+        <div class="event-progress-fill ${complete ? '' : 'pending'}" style="width:${pct}%"></div>
+      </div>
+      <span class="event-progress-count">${doneCount}/${totalCount}</span>
+    </div>
+  ` : '';
   return `
     <div class="event-card ${past ? 'past' : ''}" data-event-id="${ev.id}">
       <div class="event-date-badge">
@@ -1377,6 +1515,7 @@ function renderEventCard(ev, todayIso) {
         ${meta.length ? `<div class="event-meta">${meta.join('')}</div>` : ''}
         ${ev.description ? `<div class="event-description">${escapeHtml(ev.description)}</div>` : ''}
         <div class="event-participants">${avatarsHtml}</div>
+        ${progressHtml}
       </div>
     </div>
   `;
