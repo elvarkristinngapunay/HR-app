@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=5" />
+<link rel="stylesheet" href="style.css?v=6" />
 </head>
 <body>
   <div class="app">
@@ -275,11 +275,18 @@
           </label>
           <label class="span-2">Þátttakendur
             <div class="participant-picker">
+              <div class="quick-actions">
+                <button type="button" class="btn quick-btn" id="quick-all">Velja alla</button>
+                <select id="quick-dept-add" class="quick-select">
+                  <option value="">+ Bæta heilli deild…</option>
+                </select>
+                <button type="button" class="btn ghost quick-clear" id="quick-clear" hidden>Hreinsa</button>
+              </div>
               <div class="participant-chips" id="event-participants"></div>
               <select id="event-participant-add">
-                <option value="">+ Bæta við þátttakanda…</option>
+                <option value="">+ Bæta einstaka starfsmanni…</option>
               </select>
-              <p class="field-hint">Skildu eftir tómt til að ná til allra starfsmanna.</p>
+              <p class="field-hint" id="event-participants-hint">Skildu eftir tómt til að ná til allra starfsmanna.</p>
             </div>
           </label>
         </div>
@@ -315,10 +322,15 @@
         <div class="scratch-mentions" id="scratch-mentions"></div>
 
         <div class="form-grid">
-          <label>Áminning
-            <input type="datetime-local" id="scratch-remind" />
+          <label>Dagsetning
+            <input type="datetime-local" id="scratch-event" />
+            <span class="field-hint">Þegar málið gerist — notification á þann tíma.</span>
           </label>
-          <label>Taggaðir starfsmenn
+          <label>Minna á
+            <input type="datetime-local" id="scratch-remind" />
+            <span class="field-hint">Sérstakt undirbúnings-áminning fyrir dagsetninguna.</span>
+          </label>
+          <label class="span-2">Taggaðir starfsmenn
             <select id="scratch-tag-add">
               <option value="">+ Tagga starfsmann…</option>
             </select>
@@ -339,6 +351,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=5"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

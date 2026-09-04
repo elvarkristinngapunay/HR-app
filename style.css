@@ -1303,9 +1303,12 @@ body { display: flex; flex-direction: column; }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   font-size: 11px;
   color: var(--text-3);
+  flex-wrap: wrap;
 }
+.scratch-card-pills { display: flex; gap: 4px; flex-wrap: wrap; }
 .scratch-card-reminder {
   display: inline-flex;
   align-items: center;
@@ -1371,6 +1374,36 @@ body { display: flex; flex-direction: column; }
   flex-direction: column;
   gap: 8px;
 }
+.quick-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 10px;
+  background: var(--surface-2);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.quick-actions .quick-btn { padding: 7px 12px; font-size: 12.5px; }
+.quick-actions .quick-select {
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: white;
+  font-size: 12.5px;
+  color: var(--text-2);
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+}
+.quick-actions .quick-select:hover { border-color: var(--primary); color: var(--primary); }
+.quick-actions .quick-clear {
+  margin-left: auto;
+  color: var(--text-3);
+  padding: 7px 10px;
+  font-size: 12px;
+}
+.quick-actions .quick-clear:hover { color: var(--danger); background: var(--danger-soft); }
 .participant-chips {
   display: flex;
   flex-wrap: wrap;

@@ -1025,15 +1025,23 @@ function init() {
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      if (!document.getElementById('depts-modal').hidden) closeDeptModal();
-      else closeDrawer();
+    if (e.key !== 'Escape') return;
+    // Close whichever modal is open, in preference order.
+    const modalIds = ['scratch-modal', 'event-modal', 'depts-modal'];
+    for (const id of modalIds) {
+      const m = document.getElementById(id);
+      if (m && !m.hidden) { m.hidden = true; return; }
     }
+    closeDrawer();
   });
 
   document.getElementById('depts-btn').addEventListener('click', openDeptModal);
-  document.querySelectorAll('[data-close-modal]').forEach(el => {
-    el.addEventListener('click', closeDeptModal);
+  // Any [data-close-modal] element closes the modal it lives inside.
+  document.addEventListener('click', (e) => {
+    const closer = e.target.closest('[data-close-modal]');
+    if (!closer) return;
+    const modal = closer.closest('.modal');
+    if (modal) modal.hidden = true;
   });
 
   document.getElementById('dept-form').addEventListener('submit', (e) => {
@@ -1176,6 +1184,62 @@ function initEvents() {
       renderEvents();
     });
   });
+
+  document.getElementById('quick-all').addEventListener('click', () => {
+    eventDraftParticipants = state.employees.map(e => e.id);
+    refreshEventParticipantUI();
+  });
+  document.getElementById('quick-clear').addEventListener('click', () => {
+    eventDraftParticipants = [];
+    refreshEventParticipantUI();
+  });
+  document.getElementById('quick-dept-add').addEventListener('change', (e) => {
+    const deptId = e.target.value;
+    if (!deptId) return;
+    const toAdd = state.employees.filter(emp => emp.department_id === deptId).map(emp => emp.id);
+    const set = new Set(eventDraftParticipants);
+    toAdd.forEach(id => set.add(id));
+    eventDraftParticipants = [...set];
+    refreshEventParticipantUI();
+    e.target.value = '';
+  });
+}
+
+function refreshEventParticipantUI() {
+  renderEventParticipants();
+  populateEventParticipantSelect();
+  populateQuickDeptSelect();
+  updateParticipantHint();
+}
+
+function populateQuickDeptSelect() {
+  const el = document.getElementById('quick-dept-add');
+  const options = ['<option value="">+ Bæta heilli deild…</option>'];
+  state.departments
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name, 'is'))
+    .forEach(d => {
+      const memberCount = state.employees.filter(e => e.department_id === d.id).length;
+      if (memberCount === 0) return;
+      options.push(`<option value="${d.id}">${escapeHtml(d.name)} (${memberCount})</option>`);
+    });
+  el.innerHTML = options.join('');
+  el.value = '';
+}
+
+function updateParticipantHint() {
+  const hint = document.getElementById('event-participants-hint');
+  const clear = document.getElementById('quick-clear');
+  const total = state.employees.length;
+  const picked = eventDraftParticipants.length;
+  clear.hidden = picked === 0;
+  if (picked === 0) {
+    hint.textContent = 'Skildu eftir tómt til að ná til allra starfsmanna.';
+  } else if (picked === total) {
+    hint.textContent = `Allir starfsmenn valdir (${picked}).`;
+  } else {
+    hint.textContent = `${picked} af ${total} starfsmönnum valdir.`;
+  }
 }
 
 function openEventModal(id) {
@@ -1190,8 +1254,7 @@ function openEventModal(id) {
   document.getElementById('event-remind').value = ev?.remind_at ? toLocalDatetime(ev.remind_at) : '';
   eventDraftParticipants = ev ? [...(ev.participant_ids || [])] : [];
   document.getElementById('event-delete-btn').hidden = !ev;
-  renderEventParticipants();
-  populateEventParticipantSelect();
+  refreshEventParticipantUI();
   document.getElementById('event-modal').hidden = false;
   setTimeout(() => document.getElementById('event-title').focus(), 50);
 }
@@ -1363,6 +1426,7 @@ function openScratchModal(id) {
   document.getElementById('scratch-modal-title').textContent = sn ? 'Breyta glósu' : 'Ný glósa';
   document.getElementById('scratch-title').value = sn?.title || '';
   document.getElementById('scratch-body').value = sn?.body || '';
+  document.getElementById('scratch-event').value = sn?.event_at ? toLocalDatetime(sn.event_at) : '';
   document.getElementById('scratch-remind').value = sn?.remind_at ? toLocalDatetime(sn.remind_at) : '';
   scratchDraftTags = sn ? [...(sn.tag_ids || [])] : [];
   document.getElementById('scratch-delete-btn').hidden = !sn;
@@ -1403,6 +1467,8 @@ function saveScratchFromForm() {
   const title = document.getElementById('scratch-title').value.trim();
   const body = document.getElementById('scratch-body').value.trim();
   if (!body) return;
+  const eventVal = document.getElementById('scratch-event').value;
+  const event_at = eventVal ? new Date(eventVal).toISOString() : null;
   const remindVal = document.getElementById('scratch-remind').value;
   const remind_at = remindVal ? new Date(remindVal).toISOString() : null;
 
@@ -1412,6 +1478,8 @@ function saveScratchFromForm() {
     : { id: 'sn_' + Math.random().toString(36).slice(2, 10), created_at: now };
   sn.title = title;
   sn.body = body;
+  sn.event_at = event_at;
+  sn.event_notified = sn.event_notified || false;
   sn.remind_at = remind_at;
   sn.reminded = sn.reminded || false;
   sn.tag_ids = [...scratchDraftTags];
@@ -1450,12 +1518,18 @@ function renderScratchCard(sn, now) {
       <span>${escapeHtml(e.name)}</span>
     </span>
   `).join('');
-  let reminderHtml = '';
+  const pills = [];
+  if (sn.event_at) {
+    const t = new Date(sn.event_at).getTime();
+    const overdue = t <= now;
+    const str = new Date(sn.event_at).toLocaleString('is-IS', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    pills.push(`<span class="scratch-card-reminder${overdue ? ' overdue' : ''}" title="Dagsetning">📅 ${escapeHtml(str)}</span>`);
+  }
   if (sn.remind_at) {
-    const rTime = new Date(sn.remind_at).getTime();
-    const overdue = rTime <= now;
+    const t = new Date(sn.remind_at).getTime();
+    const overdue = t <= now;
     const str = new Date(sn.remind_at).toLocaleString('is-IS', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    reminderHtml = `<span class="scratch-card-reminder${overdue ? ' overdue' : ''}">🔔 ${escapeHtml(str)}</span>`;
+    pills.push(`<span class="scratch-card-reminder${overdue ? ' overdue' : ''}" title="Minna á">🔔 ${escapeHtml(str)}</span>`);
   }
   const dateStr = new Date(sn.updated_at || sn.created_at).toLocaleDateString('is-IS', { year: 'numeric', month: 'short', day: 'numeric' });
   return `
@@ -1465,7 +1539,7 @@ function renderScratchCard(sn, now) {
       ${tags.length ? `<div class="scratch-card-tags">${tagHtml}</div>` : ''}
       <div class="scratch-card-footer">
         <span>${dateStr}</span>
-        ${reminderHtml}
+        <div class="scratch-card-pills">${pills.join('')}</div>
       </div>
     </div>
   `;
@@ -1486,11 +1560,17 @@ scanReminders = function () {
     }
   });
   (state.scratchNotes || []).forEach(sn => {
-    if (!sn.remind_at || sn.reminded) return;
-    if (new Date(sn.remind_at).getTime() > now) return;
-    sn.reminded = true; changed = true;
-    if ('Notification' in window && Notification.permission === 'granted') {
-      try { new Notification(sn.title || 'Áminning', { body: sn.body.slice(0, 140), tag: sn.id }); } catch (_) {}
+    if (sn.remind_at && !sn.reminded && new Date(sn.remind_at).getTime() <= now) {
+      sn.reminded = true; changed = true;
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try { new Notification(`Undirbúa: ${sn.title || 'Glósa'}`, { body: sn.body.slice(0, 140), tag: sn.id + '_r' }); } catch (_) {}
+      }
+    }
+    if (sn.event_at && !sn.event_notified && new Date(sn.event_at).getTime() <= now) {
+      sn.event_notified = true; changed = true;
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try { new Notification(sn.title || 'Glósa', { body: sn.body.slice(0, 140), tag: sn.id + '_e' }); } catch (_) {}
+      }
     }
   });
   if (changed) save();
