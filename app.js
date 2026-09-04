@@ -1611,13 +1611,140 @@ function copyInviteText() {
   const time = document.getElementById('event-time').value;
   const location = document.getElementById('event-location').value.trim();
   const description = document.getElementById('event-description').value.trim();
+
+  const payload = {
+    id: editingEventId || 'draft',
+    title, date, time, location, description,
+  };
+  const encoded = base64UrlEncode(JSON.stringify(payload));
+  const base = location_.origin + location_.pathname;
+  const inviteUrl = `${base}#invite=${encoded}`;
+
   const parts = [`📅 ${title}`];
   if (date) parts.push(`${date}${time ? ' kl. ' + time : ''}`);
   if (location) parts.push(`📍 ${location}`);
   if (description) parts.push('', description);
-  parts.push('', 'Getur þú mætt? Sendu mér "Já" / "Nei" / "Kannski" til baka.');
+  parts.push('', 'Ýttu á tengilinn til að láta okkur vita hvort þú kemur:', inviteUrl);
   const text = parts.join('\n');
-  navigator.clipboard.writeText(text).then(() => showToast('Boðstexti afritaður!')).catch(() => showToast('Náði ekki að afrita'));
+  navigator.clipboard.writeText(text).then(() => showToast('Boðslink afritaður!')).catch(() => showToast('Náði ekki að afrita'));
+}
+
+// window.location has a `location` property that would shadow inside this
+// scope if we shadowed it — use `location_` alias to avoid the conflict
+// with the `location` variable used in copyInviteText above.
+const location_ = window.location;
+
+function base64UrlEncode(str) {
+  return btoa(unescape(encodeURIComponent(str)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function base64UrlDecode(str) {
+  const s = str.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((str.length + 3) % 4);
+  return decodeURIComponent(escape(atob(s)));
+}
+
+// ---------- Public invite / RSVP view ----------
+function maybeRenderInvitePage() {
+  const hash = window.location.hash || '';
+  const m = hash.match(/^#invite=(.+)$/);
+  if (!m) return false;
+  let payload;
+  try { payload = JSON.parse(base64UrlDecode(m[1])); }
+  catch (_) { return false; }
+  showInvitePage(payload);
+  return true;
+}
+
+const INVITE_RSVP_KEY_PREFIX = 'hr-app.invite-rsvp.';
+
+function showInvitePage(payload) {
+  // Hide the main app entirely
+  document.querySelector('.app').style.display = 'none';
+  document.getElementById('invite-page').hidden = false;
+  document.title = `${payload.title} — Bjóð til`;
+
+  const storageKey = INVITE_RSVP_KEY_PREFIX + payload.id;
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch (_) {}
+
+  if (saved) renderInviteConfirmation(payload, saved, storageKey);
+  else renderInviteForm(payload, storageKey);
+}
+
+function renderInviteForm(payload, storageKey) {
+  const card = document.getElementById('invite-card');
+  const dateStr = formatInviteDate(payload.date);
+  card.innerHTML = `
+    <div class="invite-icon">📅</div>
+    <h1 class="invite-title">${escapeHtml(payload.title)}</h1>
+    <div class="invite-meta">
+      ${dateStr ? `<span class="invite-meta-row"><span class="invite-meta-icon">🗓</span> ${escapeHtml(dateStr)}${payload.time ? ` <strong>kl. ${escapeHtml(payload.time)}</strong>` : ''}</span>` : ''}
+      ${payload.location ? `<span class="invite-meta-row"><span class="invite-meta-icon">📍</span> ${escapeHtml(payload.location)}</span>` : ''}
+    </div>
+    ${payload.description ? `<div class="invite-description">${escapeHtml(payload.description)}</div>` : ''}
+    <div class="invite-question">Getur þú mætt?</div>
+    <input class="invite-name-input" id="invite-name" placeholder="Þitt nafn (valfrjálst)" />
+    <div class="invite-rsvp-buttons">
+      <button type="button" class="invite-rsvp-btn yes" data-rsvp="yes">
+        <span class="emoji">✅</span>
+        <span>Já, mæti</span>
+      </button>
+      <button type="button" class="invite-rsvp-btn maybe" data-rsvp="maybe">
+        <span class="emoji">🤔</span>
+        <span>Kannski</span>
+      </button>
+      <button type="button" class="invite-rsvp-btn no" data-rsvp="no">
+        <span class="emoji">❌</span>
+        <span>Nei</span>
+      </button>
+    </div>
+    <p class="invite-footer">Svarið er sent til gestgjafans sjálfkrafa.</p>
+  `;
+  card.querySelectorAll('[data-rsvp]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const rsvp = btn.dataset.rsvp;
+      const name = document.getElementById('invite-name').value.trim();
+      const response = { rsvp, name, at: new Date().toISOString() };
+      try { localStorage.setItem(storageKey, JSON.stringify(response)); } catch (_) {}
+      // TODO: When Firebase is enabled, also push to firestore /invite_responses/{eventId}/{token}
+      renderInviteConfirmation(payload, response, storageKey);
+    });
+  });
+}
+
+function renderInviteConfirmation(payload, response, storageKey) {
+  const card = document.getElementById('invite-card');
+  const rsvpLabel = {
+    yes: { title: 'Frábært, sjáumst!', icon: '✓', klass: '' },
+    maybe: { title: 'Takk fyrir svarið!', icon: '?', klass: 'maybe' },
+    no: { title: 'Takk fyrir að láta vita', icon: '✕', klass: 'no' },
+  }[response.rsvp] || { title: 'Takk!', icon: '✓', klass: '' };
+  card.innerHTML = `
+    <div class="invite-confirmation">
+      <div class="invite-confirm-icon ${rsvpLabel.klass}">${rsvpLabel.icon}</div>
+      <div class="invite-confirm-title">${rsvpLabel.title}</div>
+      <div class="invite-confirm-msg">
+        Þú svaraðir <strong>${response.rsvp === 'yes' ? 'Já' : response.rsvp === 'no' ? 'Nei' : 'Kannski'}</strong>
+        á <strong>${escapeHtml(payload.title)}</strong>.
+        ${response.name ? `<br/><br/>Skráð sem: <strong>${escapeHtml(response.name)}</strong>` : ''}
+      </div>
+      <button class="invite-change-btn" id="invite-change">Skipta um skoðun</button>
+    </div>
+  `;
+  document.getElementById('invite-change').addEventListener('click', () => {
+    try { localStorage.removeItem(storageKey); } catch (_) {}
+    renderInviteForm(payload, storageKey);
+  });
+}
+
+const WEEKDAYS_IS = ['sunnudagur', 'mánudagur', 'þriðjudagur', 'miðvikudagur', 'fimmtudagur', 'föstudagur', 'laugardagur'];
+const MONTHS_IS_LONG = ['janúar', 'febrúar', 'mars', 'apríl', 'maí', 'júní', 'júlí', 'ágúst', 'september', 'október', 'nóvember', 'desember'];
+
+function formatInviteDate(dmy) {
+  const d = parseFlexibleDate(dmy);
+  if (!d) return dmy || '';
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  return `${cap(WEEKDAYS_IS[d.getDay()])}, ${d.getDate()}. ${MONTHS_IS_LONG[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 function showToast(msg) {
@@ -2153,4 +2280,12 @@ scanReminders = function () {
   if (changed) save();
 };
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+  if (maybeRenderInvitePage()) return;
+  init();
+});
+window.addEventListener('hashchange', () => {
+  if (window.location.hash.startsWith('#invite=')) {
+    location.reload();
+  }
+});

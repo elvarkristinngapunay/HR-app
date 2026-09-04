@@ -2187,3 +2187,206 @@ body { display: flex; flex-direction: column; }
   from { transform: translate(-50%, 10px); opacity: 0; }
   to { transform: translate(-50%, 0); opacity: 1; }
 }
+
+/* ============== Public invite / RSVP page ============== */
+.invite-page {
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  z-index: 200;
+  padding: 40px 20px;
+  background:
+    radial-gradient(ellipse at top, rgba(99, 102, 241, 0.12), transparent 65%),
+    radial-gradient(ellipse at bottom right, rgba(236, 72, 153, 0.08), transparent 60%),
+    linear-gradient(180deg, #fafbfc 0%, #f4f5f8 100%);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+.invite-card {
+  background: white;
+  border-radius: 24px;
+  padding: 40px 36px;
+  box-shadow: 0 24px 56px -12px rgba(15, 23, 42, 0.15), 0 4px 12px -2px rgba(15, 23, 42, 0.06);
+  width: 100%;
+  max-width: 480px;
+  animation: inviteIn .35s cubic-bezier(.2,.7,.3,1);
+}
+@keyframes inviteIn {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.invite-icon {
+  width: 72px; height: 72px;
+  margin: 0 auto 20px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px;
+  box-shadow: 0 8px 24px -4px rgba(99, 102, 241, 0.4);
+}
+.invite-title {
+  margin: 0 0 8px;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.5px;
+  text-align: center;
+  line-height: 1.15;
+}
+.invite-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 20px;
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 500;
+}
+.invite-meta-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.invite-meta-icon { font-size: 15px; }
+.invite-description {
+  padding: 16px 18px;
+  background: var(--surface-2);
+  border-radius: 14px;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 24px;
+  white-space: pre-wrap;
+}
+
+.invite-question {
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 14px;
+}
+.invite-name-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 14px;
+  outline: none;
+  color: var(--text);
+  background: var(--surface-2);
+  margin-bottom: 12px;
+  transition: border-color .15s, box-shadow .15s, background-color .15s;
+  font-family: inherit;
+  text-align: center;
+}
+.invite-name-input:focus {
+  border-color: var(--primary);
+  background: white;
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12);
+}
+.invite-rsvp-buttons {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.invite-rsvp-btn {
+  flex: 1;
+  padding: 14px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  background: white;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  transition: transform .12s, border-color .15s, background-color .15s;
+  font-family: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.invite-rsvp-btn:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+.invite-rsvp-btn:active { transform: scale(0.98); }
+.invite-rsvp-btn .emoji { font-size: 22px; }
+.invite-rsvp-btn.yes:hover { border-color: var(--success); background: rgba(16, 185, 129, 0.04); }
+.invite-rsvp-btn.no:hover { border-color: var(--danger); background: rgba(225, 29, 72, 0.04); }
+.invite-rsvp-btn.maybe:hover { border-color: #d97706; background: rgba(245, 158, 11, 0.06); }
+
+.invite-footer {
+  text-align: center;
+  color: var(--text-3);
+  font-size: 11.5px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+/* Confirmation state */
+.invite-confirmation {
+  text-align: center;
+  padding: 20px 0;
+}
+.invite-confirm-icon {
+  width: 80px; height: 80px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #10b981, #059669);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 40px;
+  color: white;
+  box-shadow: 0 8px 24px -4px rgba(16, 185, 129, 0.4);
+  animation: pop .4s cubic-bezier(.2,.7,.3,1);
+}
+.invite-confirm-icon.no {
+  background: linear-gradient(135deg, #e11d48, #be185d);
+  box-shadow: 0 8px 24px -4px rgba(225, 29, 72, 0.4);
+}
+.invite-confirm-icon.maybe {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  box-shadow: 0 8px 24px -4px rgba(245, 158, 11, 0.4);
+}
+@keyframes pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.invite-confirm-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.3px;
+  margin-bottom: 8px;
+}
+.invite-confirm-msg {
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+.invite-confirm-msg strong { color: var(--text); }
+.invite-change-btn {
+  background: transparent;
+  border: none;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: 8px;
+  transition: background-color .12s;
+  font-family: inherit;
+}
+.invite-change-btn:hover { background: var(--primary-soft); }
+
+@media (max-width: 480px) {
+  .invite-card { padding: 32px 24px; border-radius: 20px; }
+  .invite-title { font-size: 22px; }
+  .invite-rsvp-buttons { flex-direction: column; }
+  .invite-rsvp-btn { flex-direction: row; padding: 14px; }
+  .invite-rsvp-btn .emoji { font-size: 20px; }
+}

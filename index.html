@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=11" />
+<link rel="stylesheet" href="style.css?v=12" />
 </head>
 <body>
   <div class="app">
@@ -446,6 +446,13 @@
     </div>
   </div>
 
-  <script src="app.js?v=11"></script>
+  <!-- Public RSVP page (shown when URL is #invite=…) -->
+  <div class="invite-page" id="invite-page" hidden>
+    <main class="invite-card" id="invite-card">
+      <!-- Populated by JS -->
+    </main>
+  </div>
+
+  <script src="app.js?v=12"></script>
 </body>
 </html>
