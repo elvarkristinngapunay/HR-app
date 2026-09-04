@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=7" />
+<link rel="stylesheet" href="style.css?v=10" />
 </head>
 <body>
   <div class="app">
@@ -253,7 +253,7 @@
         </div>
         <button class="icon-btn" data-close-modal title="Loka">✕</button>
       </header>
-      <form class="modal-body" id="event-form">
+      <form class="modal-body event-modal-body" id="event-form">
         <div class="form-grid">
           <label class="span-2">Titill
             <input type="text" id="event-title" required maxlength="120" placeholder="t.d. Starfsmannafundur" />
@@ -271,41 +271,116 @@
             <input type="datetime-local" id="event-remind" />
           </label>
           <label class="span-2">Lýsing
-            <textarea id="event-description" rows="3" placeholder="Nánari lýsing viðburðar…"></textarea>
-          </label>
-          <label class="span-2">Þátttakendur
-            <div class="participant-picker">
-              <div class="quick-actions">
-                <button type="button" class="btn quick-btn" id="quick-all">Velja alla</button>
-                <select id="quick-dept-add" class="quick-select">
-                  <option value="">+ Bæta heilli deild…</option>
-                </select>
-                <button type="button" class="btn ghost quick-clear" id="quick-clear" hidden>Hreinsa</button>
-              </div>
-              <div class="participant-chips" id="event-participants"></div>
-              <select id="event-participant-add">
-                <option value="">+ Bæta einstaka starfsmanni…</option>
-              </select>
-              <p class="field-hint" id="event-participants-hint">Skildu eftir tómt til að ná til allra starfsmanna.</p>
-            </div>
+            <textarea id="event-description" rows="2" placeholder="Nánari lýsing viðburðar…"></textarea>
           </label>
         </div>
 
-        <div class="tasks-section">
-          <div class="tasks-header">
-            <div>
-              <h3>Verkefni</h3>
-              <p class="field-hint" id="tasks-progress">Engin verkefni ennþá</p>
+        <nav class="event-tabs">
+          <button type="button" class="event-tab active" data-event-tab="guests">
+            <span class="event-tab-icon">👥</span>
+            <span>Gestir</span>
+            <span class="event-tab-badge" id="guests-count-badge">0</span>
+          </button>
+          <button type="button" class="event-tab" data-event-tab="planning">
+            <span class="event-tab-icon">📋</span>
+            <span>Planning</span>
+            <span class="event-tab-badge" id="planning-count-badge">0</span>
+          </button>
+          <button type="button" class="event-tab" data-event-tab="timeline">
+            <span class="event-tab-icon">🕐</span>
+            <span>Tímalína</span>
+            <span class="event-tab-badge" id="timeline-count-badge">0</span>
+          </button>
+        </nav>
+
+        <!-- Gestir tab -->
+        <section class="event-tab-panel active" data-event-panel="guests">
+          <div class="guests-summary">
+            <div class="guests-stats">
+              <div class="stat-tile"><div class="stat-num" id="stat-invited">0</div><div class="stat-label">Boðið</div></div>
+              <div class="stat-tile stat-yes"><div class="stat-num" id="stat-yes">0</div><div class="stat-label">Mæta</div></div>
+              <div class="stat-tile stat-no"><div class="stat-num" id="stat-no">0</div><div class="stat-label">Mæta ekki</div></div>
+              <div class="stat-tile stat-maybe"><div class="stat-num" id="stat-maybe">0</div><div class="stat-label">Kannski</div></div>
+              <div class="stat-tile stat-pending"><div class="stat-num" id="stat-pending">0</div><div class="stat-label">Ekki svarað</div></div>
             </div>
-            <div class="tasks-progress-bar">
-              <div class="tasks-progress-fill" id="tasks-progress-fill"></div>
+            <button type="button" class="btn" id="copy-invite-btn">🔗 Afrita boðslink</button>
+          </div>
+
+          <div class="participant-picker">
+            <div class="quick-actions">
+              <button type="button" class="btn quick-btn" id="quick-all">Velja alla</button>
+              <select id="quick-dept-add" class="quick-select">
+                <option value="">+ Bæta heilli deild…</option>
+              </select>
+              <button type="button" class="btn ghost quick-clear" id="quick-clear" hidden>Hreinsa</button>
+            </div>
+            <select id="event-participant-add">
+              <option value="">+ Bæta einstaka starfsmanni…</option>
+            </select>
+          </div>
+
+          <ul class="guests-list" id="guests-list"></ul>
+
+          <div class="external-guests">
+            <h4>Ytri gestir</h4>
+            <ul class="guests-list" id="external-guests-list"></ul>
+            <div class="external-guest-add">
+              <input type="text" id="external-guest-name" placeholder="Nafn" />
+              <input type="email" id="external-guest-email" placeholder="Netfang (valfrjálst)" />
+              <button type="button" class="btn" id="add-external-guest">+ Bæta við</button>
             </div>
           </div>
-          <ul class="tasks-list" id="tasks-list"></ul>
-          <div class="task-add" id="task-add-form">
-            <input type="text" id="task-add-input" placeholder="+ Bæta við verkefni og ýttu á Enter" />
+        </section>
+
+        <!-- Planning tab -->
+        <section class="event-tab-panel" data-event-panel="planning" hidden>
+          <div class="planning-block">
+            <div class="planning-header">
+              <div>
+                <h3>Verkefni</h3>
+                <p class="field-hint" id="tasks-progress">Engin verkefni ennþá</p>
+              </div>
+              <div class="tasks-progress-bar">
+                <div class="tasks-progress-fill" id="tasks-progress-fill"></div>
+              </div>
+            </div>
+            <ul class="tasks-list" id="tasks-list"></ul>
+            <div class="task-add" id="task-add-form">
+              <input type="text" id="task-add-input" placeholder="+ Bæta við verkefni og ýttu á Enter" />
+            </div>
           </div>
-        </div>
+
+          <div class="planning-block">
+            <div class="planning-header">
+              <div>
+                <h3>Fjárhagsáætlun</h3>
+                <p class="field-hint" id="budget-summary">Enginn kostnaður skráður</p>
+              </div>
+              <div class="budget-total">
+                <label>Áætlun <input type="number" id="event-budget" placeholder="0" min="0" step="1000" /></label>
+              </div>
+            </div>
+            <ul class="budget-list" id="budget-list"></ul>
+            <div class="budget-add">
+              <input type="text" id="budget-add-label" placeholder="Lýsing (t.d. veitingar)" />
+              <input type="number" id="budget-add-amount" placeholder="Kostnaður" min="0" step="100" />
+              <button type="button" class="btn" id="budget-add-btn">+ Bæta við</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Tímalína tab -->
+        <section class="event-tab-panel" data-event-panel="timeline" hidden>
+          <div class="timeline-block">
+            <p class="field-hint">Skref-fyrir-skref dagskrá á viðburðardegi. Notaðu tímana til að stilla stemmninguna.</p>
+            <ol class="timeline-list" id="timeline-list"></ol>
+            <div class="timeline-add">
+              <input type="time" id="timeline-add-time" />
+              <input type="text" id="timeline-add-title" placeholder="Hvað gerist? (t.d. Opnunarræða)" />
+              <button type="button" class="btn" id="timeline-add-btn">+ Bæta við</button>
+            </div>
+          </div>
+        </section>
 
         <div class="modal-footer">
           <button type="button" class="btn ghost danger" id="event-delete-btn" hidden>Eyða</button>
@@ -368,6 +443,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>

@@ -1135,8 +1135,14 @@ function switchSection(name) {
 const MONTHS_IS = ['jan', 'feb', 'mar', 'apr', 'maí', 'jún', 'júl', 'ágú', 'sep', 'okt', 'nóv', 'des'];
 let editingEventId = null;
 let eventView = 'upcoming';
+let eventTab = 'guests';
 let eventDraftParticipants = [];
 let eventDraftTasks = [];
+let eventDraftRsvps = {};
+let eventDraftExternalGuests = [];
+let eventDraftBudget = null;
+let eventDraftBudgetItems = [];
+let eventDraftTimeline = [];
 
 function initEvents() {
   document.getElementById('add-event-btn').addEventListener('click', () => openEventModal(null));
@@ -1168,15 +1174,138 @@ function initEvents() {
     const id = e.target.value;
     if (!id) return;
     if (!eventDraftParticipants.includes(id)) eventDraftParticipants.push(id);
-    renderEventParticipants();
-    populateEventParticipantSelect();
+    refreshGuestsUI();
+    autoSaveEventIfEditing();
   });
-  document.getElementById('event-participants').addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-remove-participant]');
-    if (!btn) return;
-    eventDraftParticipants = eventDraftParticipants.filter(id => id !== btn.dataset.removeParticipant);
-    renderEventParticipants();
-    populateEventParticipantSelect();
+
+  // Guest list interactions (RSVP + remove) for both employee + external
+  ['guests-list', 'external-guests-list'].forEach(listId => {
+    document.getElementById(listId).addEventListener('click', (e) => {
+      const row = e.target.closest('[data-guest-id]');
+      if (!row) return;
+      const gid = row.dataset.guestId;
+      const isExternal = row.dataset.external === '1';
+      const rsvpBtn = e.target.closest('[data-rsvp]');
+      const removeBtn = e.target.closest('[data-action=remove-guest]');
+      if (rsvpBtn) {
+        const status = rsvpBtn.dataset.rsvp;
+        if (isExternal) {
+          const g = eventDraftExternalGuests.find(x => x.id === gid);
+          if (g) g.rsvp = (g.rsvp === status) ? null : status;
+        } else {
+          if (eventDraftRsvps[gid] === status) delete eventDraftRsvps[gid];
+          else eventDraftRsvps[gid] = status;
+        }
+        refreshGuestsUI();
+        autoSaveEventIfEditing();
+      } else if (removeBtn) {
+        if (isExternal) {
+          eventDraftExternalGuests = eventDraftExternalGuests.filter(x => x.id !== gid);
+        } else {
+          eventDraftParticipants = eventDraftParticipants.filter(id => id !== gid);
+          delete eventDraftRsvps[gid];
+        }
+        refreshGuestsUI();
+        autoSaveEventIfEditing();
+      }
+    });
+  });
+
+  // Add external guest
+  document.getElementById('add-external-guest').addEventListener('click', () => {
+    const nameEl = document.getElementById('external-guest-name');
+    const emailEl = document.getElementById('external-guest-email');
+    const name = nameEl.value.trim();
+    if (!name) return;
+    eventDraftExternalGuests.push({
+      id: 'ex_' + Math.random().toString(36).slice(2, 10),
+      name,
+      email: emailEl.value.trim(),
+      rsvp: null,
+    });
+    nameEl.value = ''; emailEl.value = '';
+    refreshGuestsUI();
+    autoSaveEventIfEditing();
+    nameEl.focus();
+  });
+  document.getElementById('external-guest-name').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('add-external-guest').click(); }
+  });
+  document.getElementById('external-guest-email').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('add-external-guest').click(); }
+  });
+
+  // Copy invite link
+  document.getElementById('copy-invite-btn').addEventListener('click', copyInviteText);
+
+  // Sub-tabs inside event modal
+  document.querySelectorAll('[data-event-tab]').forEach(b => {
+    b.addEventListener('click', () => switchEventTab(b.dataset.eventTab));
+  });
+
+  // Budget
+  document.getElementById('event-budget').addEventListener('input', (e) => {
+    eventDraftBudget = e.target.value ? Number(e.target.value) : null;
+    renderBudget();
+    autoSaveEventIfEditing();
+  });
+  document.getElementById('budget-add-btn').addEventListener('click', addBudgetItem);
+  document.getElementById('budget-add-label').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); addBudgetItem(); }
+  });
+  document.getElementById('budget-add-amount').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); addBudgetItem(); }
+  });
+  const budgetList = document.getElementById('budget-list');
+  budgetList.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-budget-id]');
+    if (!item) return;
+    if (e.target.closest('[data-action=remove]')) {
+      eventDraftBudgetItems = eventDraftBudgetItems.filter(b => b.id !== item.dataset.budgetId);
+      renderBudget();
+      autoSaveEventIfEditing();
+    }
+  });
+  budgetList.addEventListener('input', (e) => {
+    const item = e.target.closest('[data-budget-id]');
+    if (!item) return;
+    const b = eventDraftBudgetItems.find(x => x.id === item.dataset.budgetId);
+    if (!b) return;
+    if (e.target.classList.contains('budget-label')) b.label = e.target.value;
+    else if (e.target.classList.contains('budget-amount')) b.amount = Number(e.target.value) || 0;
+    updateBudgetSummary();
+    autoSaveEventIfEditing();
+  });
+
+  // Timeline
+  document.getElementById('timeline-add-btn').addEventListener('click', addTimelineItem);
+  document.getElementById('timeline-add-title').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); addTimelineItem(); }
+  });
+  const timelineList = document.getElementById('timeline-list');
+  timelineList.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-timeline-id]');
+    if (!item) return;
+    const t = eventDraftTimeline.find(x => x.id === item.dataset.timelineId);
+    if (!t) return;
+    if (e.target.closest('[data-action=toggle]')) {
+      t.done = !t.done;
+      renderTimeline();
+      autoSaveEventIfEditing();
+    } else if (e.target.closest('[data-action=remove]')) {
+      eventDraftTimeline = eventDraftTimeline.filter(x => x.id !== t.id);
+      renderTimeline();
+      autoSaveEventIfEditing();
+    }
+  });
+  timelineList.addEventListener('input', (e) => {
+    const item = e.target.closest('[data-timeline-id]');
+    if (!item) return;
+    const t = eventDraftTimeline.find(x => x.id === item.dataset.timelineId);
+    if (!t) return;
+    if (e.target.classList.contains('timeline-title')) t.title = e.target.value;
+    else if (e.target.classList.contains('timeline-time')) t.time = e.target.value;
+    autoSaveEventIfEditing();
   });
   document.querySelectorAll('[data-event-view]').forEach(b => {
     b.addEventListener('click', () => {
@@ -1276,20 +1405,12 @@ function initEvents() {
   });
 }
 
-function autoSaveTasksIfEditing() {
-  if (!editingEventId) return;
-  const ev = state.events.find(x => x.id === editingEventId);
-  if (!ev) return;
-  ev.tasks = deepCloneTasks(eventDraftTasks);
-  save();
-  renderEvents();
-}
+function autoSaveTasksIfEditing() { autoSaveEventIfEditing(); }
 
 function refreshEventParticipantUI() {
-  renderEventParticipants();
   populateEventParticipantSelect();
   populateQuickDeptSelect();
-  updateParticipantHint();
+  refreshGuestsUI();
 }
 
 function populateQuickDeptSelect() {
@@ -1307,20 +1428,7 @@ function populateQuickDeptSelect() {
   el.value = '';
 }
 
-function updateParticipantHint() {
-  const hint = document.getElementById('event-participants-hint');
-  const clear = document.getElementById('quick-clear');
-  const total = state.employees.length;
-  const picked = eventDraftParticipants.length;
-  clear.hidden = picked === 0;
-  if (picked === 0) {
-    hint.textContent = 'Skildu eftir tómt til að ná til allra starfsmanna.';
-  } else if (picked === total) {
-    hint.textContent = `Allir starfsmenn valdir (${picked}).`;
-  } else {
-    hint.textContent = `${picked} af ${total} starfsmönnum valdir.`;
-  }
-}
+function updateParticipantHint() { /* kept for compat; UI hint replaced by stat tiles */ }
 
 function openEventModal(id) {
   editingEventId = id;
@@ -1334,9 +1442,18 @@ function openEventModal(id) {
   document.getElementById('event-remind').value = ev?.remind_at ? toLocalDatetime(ev.remind_at) : '';
   eventDraftParticipants = ev ? [...(ev.participant_ids || [])] : [];
   eventDraftTasks = ev ? deepCloneTasks(ev.tasks || []) : [];
+  eventDraftRsvps = ev ? { ...(ev.rsvps || {}) } : {};
+  eventDraftExternalGuests = ev ? (ev.external_guests || []).map(g => ({ ...g })) : [];
+  eventDraftBudget = ev ? (ev.budget ?? null) : null;
+  eventDraftBudgetItems = ev ? (ev.budget_items || []).map(b => ({ ...b })) : [];
+  eventDraftTimeline = ev ? (ev.timeline_items || []).map(t => ({ ...t })) : [];
   document.getElementById('event-delete-btn').hidden = !ev;
+  document.getElementById('event-budget').value = eventDraftBudget ?? '';
   refreshEventParticipantUI();
   renderTaskList();
+  renderBudget();
+  renderTimeline();
+  switchEventTab('guests');
   document.getElementById('event-modal').hidden = false;
   setTimeout(() => document.getElementById('event-title').focus(), 50);
 }
@@ -1367,8 +1484,221 @@ function populateEventParticipantSelect() {
   el.value = '';
 }
 
+function switchEventTab(name) {
+  eventTab = name;
+  document.querySelectorAll('[data-event-tab]').forEach(b => {
+    b.classList.toggle('active', b.dataset.eventTab === name);
+  });
+  document.querySelectorAll('[data-event-panel]').forEach(p => {
+    p.hidden = (p.dataset.eventPanel !== name);
+  });
+}
+
+function refreshGuestsUI() {
+  populateEventParticipantSelect();
+  populateQuickDeptSelect();
+  renderGuests();
+  updateGuestStats();
+}
+
+function updateGuestStats() {
+  const total = eventDraftParticipants.length + eventDraftExternalGuests.length;
+  let yes = 0, no = 0, maybe = 0;
+  eventDraftParticipants.forEach(id => {
+    const r = eventDraftRsvps[id];
+    if (r === 'yes') yes++; else if (r === 'no') no++; else if (r === 'maybe') maybe++;
+  });
+  eventDraftExternalGuests.forEach(g => {
+    if (g.rsvp === 'yes') yes++; else if (g.rsvp === 'no') no++; else if (g.rsvp === 'maybe') maybe++;
+  });
+  const pending = total - yes - no - maybe;
+  document.getElementById('stat-invited').textContent = total;
+  document.getElementById('stat-yes').textContent = yes;
+  document.getElementById('stat-no').textContent = no;
+  document.getElementById('stat-maybe').textContent = maybe;
+  document.getElementById('stat-pending').textContent = pending;
+  document.getElementById('guests-count-badge').textContent = total;
+  document.getElementById('quick-clear').hidden = eventDraftParticipants.length === 0;
+}
+
+function renderGuests() {
+  const list = document.getElementById('guests-list');
+  list.innerHTML = eventDraftParticipants.map(id => {
+    const e = findEmp(id);
+    if (!e) return '';
+    const rsvp = eventDraftRsvps[id] || '';
+    return renderGuestRow({
+      id: e.id,
+      name: e.name,
+      color: e.avatar_color,
+      rsvp,
+      external: false,
+    });
+  }).join('') || '<p class="field-hint" style="padding: 8px 0;">Engir starfsmenn skráðir. Notaðu "Velja alla" eða bættu einstökum við.</p>';
+
+  const ext = document.getElementById('external-guests-list');
+  ext.innerHTML = eventDraftExternalGuests.map(g => renderGuestRow({
+    id: g.id,
+    name: g.name,
+    color: '#94a3b8',
+    rsvp: g.rsvp || '',
+    external: true,
+  })).join('');
+}
+
+function renderGuestRow({ id, name, color, rsvp, external }) {
+  return `
+    <li class="guest-row" data-guest-id="${id}" data-external="${external ? 1 : 0}">
+      <span class="chip-avatar" style="background:${color}">${initials(name)}</span>
+      <span class="guest-name ${external ? 'external' : ''}">${escapeHtml(name)}</span>
+      <div class="rsvp-toggle">
+        <button type="button" class="rsvp-btn ${rsvp === 'yes' ? 'active' : ''}" data-rsvp="yes" title="Mætir">✓ Mætir</button>
+        <button type="button" class="rsvp-btn ${rsvp === 'maybe' ? 'active' : ''}" data-rsvp="maybe" title="Kannski">? Kannski</button>
+        <button type="button" class="rsvp-btn ${rsvp === 'no' ? 'active' : ''}" data-rsvp="no" title="Mætir ekki">✕ Nei</button>
+      </div>
+      <button type="button" class="guest-remove" data-action="remove-guest" title="Fjarlægja">✕</button>
+    </li>
+  `;
+}
+
+function copyInviteText() {
+  const title = document.getElementById('event-title').value.trim() || 'Viðburður';
+  const date = document.getElementById('event-date').value.trim();
+  const time = document.getElementById('event-time').value;
+  const location = document.getElementById('event-location').value.trim();
+  const description = document.getElementById('event-description').value.trim();
+  const parts = [`📅 ${title}`];
+  if (date) parts.push(`${date}${time ? ' kl. ' + time : ''}`);
+  if (location) parts.push(`📍 ${location}`);
+  if (description) parts.push('', description);
+  parts.push('', 'Getur þú mætt? Sendu mér "Já" / "Nei" / "Kannski" til baka.');
+  const text = parts.join('\n');
+  navigator.clipboard.writeText(text).then(() => showToast('Boðstexti afritaður!')).catch(() => showToast('Náði ekki að afrita'));
+}
+
+function showToast(msg) {
+  document.querySelectorAll('.toast').forEach(t => t.remove());
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2200);
+}
+
+function addBudgetItem() {
+  const label = document.getElementById('budget-add-label').value.trim();
+  const amount = Number(document.getElementById('budget-add-amount').value) || 0;
+  if (!label) return;
+  eventDraftBudgetItems.push({
+    id: 'b_' + Math.random().toString(36).slice(2, 10),
+    label,
+    amount,
+  });
+  document.getElementById('budget-add-label').value = '';
+  document.getElementById('budget-add-amount').value = '';
+  renderBudget();
+  autoSaveEventIfEditing();
+  document.getElementById('budget-add-label').focus();
+}
+
+function renderBudget() {
+  const list = document.getElementById('budget-list');
+  list.innerHTML = eventDraftBudgetItems.map(b => `
+    <li class="budget-item" data-budget-id="${b.id}">
+      <input class="budget-label" value="${escapeHtml(b.label)}" />
+      <input class="budget-amount" type="number" value="${b.amount || 0}" min="0" step="100" />
+      <button type="button" class="budget-item-remove" data-action="remove" title="Eyða">✕</button>
+    </li>
+  `).join('');
+  updateBudgetSummary();
+  document.getElementById('planning-count-badge').textContent =
+    eventDraftTasks.length + eventDraftBudgetItems.length;
+}
+
+function updateBudgetSummary() {
+  const spent = eventDraftBudgetItems.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+  const budget = eventDraftBudget;
+  const summary = document.getElementById('budget-summary');
+  const fmt = n => n.toLocaleString('is-IS');
+  let text;
+  if (!eventDraftBudgetItems.length && !budget) text = 'Enginn kostnaður skráður';
+  else if (budget) {
+    const over = spent > budget;
+    text = `${fmt(spent)} kr. af ${fmt(budget)} kr. ${over ? '· umfram!' : `(${Math.round((spent / budget) * 100)}%)`}`;
+    summary.classList.toggle('over', over);
+  } else {
+    text = `Samtals ${fmt(spent)} kr.`;
+    summary.classList.remove('over');
+  }
+  summary.textContent = text;
+
+  // Add/update progress bar under summary if budget set
+  let bar = document.querySelector('.budget-progress-bar');
+  if (budget) {
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.className = 'budget-progress-bar';
+      bar.innerHTML = '<div class="budget-progress-fill"></div>';
+      document.getElementById('budget-list').parentElement.insertBefore(bar, document.getElementById('budget-list'));
+    }
+    const pct = Math.min(100, budget ? (spent / budget) * 100 : 0);
+    const fill = bar.querySelector('.budget-progress-fill');
+    fill.style.width = pct + '%';
+    fill.classList.toggle('over', spent > budget);
+  } else if (bar) {
+    bar.remove();
+  }
+}
+
+function addTimelineItem() {
+  const time = document.getElementById('timeline-add-time').value;
+  const title = document.getElementById('timeline-add-title').value.trim();
+  if (!title) return;
+  eventDraftTimeline.push({
+    id: 'tl_' + Math.random().toString(36).slice(2, 10),
+    time,
+    title,
+    done: false,
+  });
+  document.getElementById('timeline-add-time').value = '';
+  document.getElementById('timeline-add-title').value = '';
+  renderTimeline();
+  autoSaveEventIfEditing();
+  document.getElementById('timeline-add-title').focus();
+}
+
+function renderTimeline() {
+  const list = document.getElementById('timeline-list');
+  const sorted = eventDraftTimeline.slice().sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+  list.innerHTML = sorted.map(t => `
+    <li class="timeline-item ${t.done ? 'done' : ''}" data-timeline-id="${t.id}">
+      <button type="button" class="timeline-done-toggle" data-action="toggle" title="Merkja"></button>
+      <input type="time" class="timeline-time" value="${escapeHtml(t.time || '')}" />
+      <input class="timeline-title" value="${escapeHtml(t.title)}" />
+      <button type="button" class="timeline-remove" data-action="remove" title="Eyða">✕</button>
+    </li>
+  `).join('');
+  document.getElementById('timeline-count-badge').textContent = eventDraftTimeline.length;
+}
+
+function autoSaveEventIfEditing() {
+  if (!editingEventId) return;
+  const ev = state.events.find(x => x.id === editingEventId);
+  if (!ev) return;
+  ev.participant_ids = [...eventDraftParticipants];
+  ev.rsvps = { ...eventDraftRsvps };
+  ev.external_guests = eventDraftExternalGuests.map(g => ({ ...g }));
+  ev.tasks = deepCloneTasks(eventDraftTasks);
+  ev.budget = eventDraftBudget;
+  ev.budget_items = eventDraftBudgetItems.map(b => ({ ...b }));
+  ev.timeline_items = eventDraftTimeline.map(t => ({ ...t }));
+  save();
+  renderEvents();
+}
+
 function renderEventParticipants() {
   const el = document.getElementById('event-participants');
+  if (!el) return;
   el.innerHTML = eventDraftParticipants.map(id => {
     const e = findEmp(id);
     if (!e) return '';
@@ -1390,6 +1720,8 @@ function renderTaskList() {
     ? `${done} af ${total} lokið`
     : 'Engin verkefni ennþá';
   progressFill.style.width = total ? `${(done / total) * 100}%` : '0';
+  const planningBadge = document.getElementById('planning-count-badge');
+  if (planningBadge) planningBadge.textContent = total + eventDraftBudgetItems.length;
   if (!total) { list.innerHTML = ''; return; }
 
   const assigneeOptions = state.employees
@@ -1443,7 +1775,12 @@ function saveEventFromForm() {
   ev.remind_at = remind_at;
   ev.reminded = ev.reminded || false;
   ev.participant_ids = [...eventDraftParticipants];
+  ev.rsvps = { ...eventDraftRsvps };
+  ev.external_guests = eventDraftExternalGuests.map(g => ({ ...g }));
   ev.tasks = deepCloneTasks(eventDraftTasks);
+  ev.budget = eventDraftBudget;
+  ev.budget_items = eventDraftBudgetItems.map(b => ({ ...b }));
+  ev.timeline_items = eventDraftTimeline.map(t => ({ ...t }));
   if (!editingEventId) state.events.push(ev);
   save();
   closeModal('event-modal');
