@@ -2390,3 +2390,187 @@ body { display: flex; flex-direction: column; }
   .invite-rsvp-btn { flex-direction: row; padding: 14px; }
   .invite-rsvp-btn .emoji { font-size: 20px; }
 }
+
+/* ============== Party item modal (sheet) ============== */
+.item-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--text-2);
+  margin-bottom: 14px;
+}
+.item-field > input,
+.item-field > .item-amount-wrap input {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 13.5px;
+  outline: none;
+  background: white;
+  color: var(--text);
+  font-family: inherit;
+  transition: border-color .15s, box-shadow .15s;
+}
+.item-field > input:focus,
+.item-field .item-amount-wrap input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79,70,229,.12);
+}
+.item-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 130px;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.item-row-2 .item-field { margin-bottom: 0; }
+
+.item-amount-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.item-amount-wrap input { flex: 1; text-align: right; }
+.item-amount-wrap .amount-suffix {
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 24px;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.seg-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  background: white;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .15s, background-color .15s;
+  font-family: inherit;
+}
+.seg-btn:hover { border-color: var(--border-strong); }
+.seg-btn.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.seg-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.seg-label {
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--text);
+  letter-spacing: -0.1px;
+}
+.seg-btn.active .seg-label { color: var(--primary); }
+.seg-sub {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+/* ============== Party items list (cards) ============== */
+.party-item-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: transform .12s cubic-bezier(.2,.7,.3,1), box-shadow .15s, border-color .15s;
+  margin-bottom: 8px;
+}
+.party-item-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+  border-color: rgba(79, 70, 229, 0.3);
+}
+.party-item-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.party-item-name {
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--text);
+  letter-spacing: -0.1px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.party-item-cost {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.party-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+.party-item-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 11px;
+}
+.party-item-pill.delivered {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+}
+.party-item-pill.pickup {
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+}
+.party-item-pill.overdue {
+  background: rgba(225, 29, 72, 0.1);
+  color: var(--danger);
+}
+.party-item-meta-sep { color: var(--text-3); }
+
+/* Add item button — matches the "Nýr hlutur" style */
+.party-add-item {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color .12s, background-color .12s, color .12s;
+  text-align: center;
+}
+.party-add-item:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-style: solid;
+}
+
+/* Override the inline row inside budget-category-body — hide it, use party UI */
+.budget-category-body .budget-add-item-row { display: none; }

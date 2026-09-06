@@ -1027,7 +1027,7 @@ function init() {
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     // Close whichever modal is open, in preference order.
-    const modalIds = ['scratch-modal', 'event-modal', 'depts-modal'];
+    const modalIds = ['item-modal', 'scratch-modal', 'event-modal', 'depts-modal'];
     for (const id of modalIds) {
       const m = document.getElementById(id);
       if (m && !m.hidden) { m.hidden = true; return; }
@@ -1105,6 +1105,7 @@ function init() {
   initSections();
   initEvents();
   initScratch();
+  initItemSheet();
 }
 
 // ---------- Sections (Allir / Viðburðir / Skjal) ----------
@@ -1275,21 +1276,11 @@ function initEvents() {
       cat.items = cat.items.filter(i => i.id !== itemEl.dataset.itemId);
       renderBudget();
       autoSaveEventIfEditing();
-    } else if (e.target.closest('[data-action=add-item]')) {
-      const nameEl = catEl.querySelector('.new-item-name');
-      const amtEl = catEl.querySelector('.new-item-amount');
-      const name = nameEl.value.trim();
-      if (!name) return;
-      cat.items.push({
-        id: 'bi_' + Math.random().toString(36).slice(2, 10),
-        name,
-        amount: Number(amtEl.value) || 0,
-      });
-      nameEl.value = ''; amtEl.value = '';
-      renderBudget();
-      autoSaveEventIfEditing();
-      const openCat = document.querySelector(`.budget-category[data-category-id="${cat.id}"]`);
-      if (openCat) openCat.querySelector('.new-item-name').focus();
+    } else if (e.target.closest('[data-action=open-item-sheet]')) {
+      openItemSheet(cat.id, null);
+    } else if (e.target.closest('.party-item-card')) {
+      const itemEl = e.target.closest('[data-item-id]');
+      openItemSheet(cat.id, itemEl.dataset.itemId);
     } else if (headerClick && !e.target.closest('input, button')) {
       cat.open = !cat.open;
       renderBudget();
@@ -1814,13 +1805,7 @@ function renderBudget() {
   el.innerHTML = eventDraftBudgetCategories.map(cat => {
     const actual = categoryActual(cat);
     const over = cat.estimated && actual > cat.estimated;
-    const itemsHtml = cat.items.map(i => `
-      <li class="budget-item" data-item-id="${i.id}">
-        <input class="budget-label item-name" value="${escapeHtml(i.name)}" />
-        <input class="budget-amount item-amount" type="number" value="${i.amount || 0}" min="0" step="100" />
-        <button type="button" class="budget-item-remove" data-action="delete-item" title="Eyða">✕</button>
-      </li>
-    `).join('');
+    const itemsHtml = cat.items.map(renderPartyItem).join('');
     return `
       <div class="budget-category ${cat.open ? 'open' : ''}" data-category-id="${cat.id}">
         <div class="budget-category-header">
@@ -1833,12 +1818,8 @@ function renderBudget() {
           <button type="button" class="budget-category-delete" data-action="delete-category" title="Eyða flokki">✕</button>
         </div>
         <div class="budget-category-body">
-          <ul class="budget-list">${itemsHtml}</ul>
-          <div class="budget-add-item-row">
-            <input type="text" class="new-item-name" placeholder="Nýr hlutur" />
-            <input type="number" class="new-item-amount" placeholder="kr." min="0" step="100" />
-            <button type="button" class="btn" data-action="add-item">+</button>
-          </div>
+          <div class="party-items-list">${itemsHtml}</div>
+          <button type="button" class="party-add-item" data-action="open-item-sheet">+ Bæta við hlut</button>
         </div>
       </div>
     `;
@@ -1847,6 +1828,148 @@ function renderBudget() {
   const totalItems = eventDraftBudgetCategories.reduce((s, c) => s + c.items.length, 0);
   const badge = document.getElementById('planning-count-badge');
   if (badge) badge.textContent = eventDraftTasks.length + totalItems;
+}
+
+// ---------- Party item sheet ----------
+let itemSheetCategoryId = null;
+let itemSheetItemId = null;
+let itemSheetPickupType = 'delivered';
+
+function initItemSheet() {
+  const form = document.getElementById('item-form');
+  if (!form) return;
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    saveItemFromSheet();
+  });
+  document.querySelectorAll('#item-modal [data-pickup]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      itemSheetPickupType = btn.dataset.pickup;
+      document.querySelectorAll('#item-modal [data-pickup]').forEach(b => {
+        b.classList.toggle('active', b === btn);
+      });
+      updateItemLocationLabel();
+    });
+  });
+  document.getElementById('item-date').addEventListener('input', (e) => {
+    const raw = e.target.value;
+    const formatted = formatDateStr(raw);
+    if (raw !== formatted) {
+      const atEnd = e.target.selectionStart >= raw.length;
+      e.target.value = formatted;
+      if (atEnd) e.target.setSelectionRange(formatted.length, formatted.length);
+    }
+  });
+  document.getElementById('item-delete-btn').addEventListener('click', () => {
+    if (!itemSheetCategoryId || !itemSheetItemId) return;
+    const cat = eventDraftBudgetCategories.find(c => c.id === itemSheetCategoryId);
+    if (!cat) return;
+    const it = cat.items.find(i => i.id === itemSheetItemId);
+    if (!it) return;
+    if (!confirm(`Eyða "${it.name}"?`)) return;
+    cat.items = cat.items.filter(i => i.id !== itemSheetItemId);
+    closeModal('item-modal');
+    renderBudget();
+    autoSaveEventIfEditing();
+  });
+}
+
+function updateItemLocationLabel() {
+  const label = document.getElementById('item-location-label');
+  const field = document.getElementById('item-location-field');
+  const input = document.getElementById('item-location');
+  if (itemSheetPickupType === 'pickup') {
+    label.textContent = 'Sótt á';
+    input.placeholder = 't.d. Söru, Bæjarhraun 14';
+    field.hidden = false;
+  } else {
+    label.textContent = 'Athugasemd (valfrjálst)';
+    input.placeholder = 't.d. skiltast fyrir hurð';
+    field.hidden = false;
+  }
+}
+
+function openItemSheet(categoryId, itemId) {
+  itemSheetCategoryId = categoryId;
+  itemSheetItemId = itemId;
+  const cat = eventDraftBudgetCategories.find(c => c.id === categoryId);
+  if (!cat) return;
+  const item = itemId ? cat.items.find(i => i.id === itemId) : null;
+  document.getElementById('item-modal-title').textContent = item ? 'Breyta hlut' : 'Nýr hlutur';
+  document.getElementById('item-modal-subtitle').textContent = cat.name;
+  document.getElementById('item-name').value = item?.name || '';
+  document.getElementById('item-date').value = item?.pickup_date || '';
+  document.getElementById('item-time').value = item?.pickup_time || '';
+  document.getElementById('item-location').value = item?.pickup_location || '';
+  document.getElementById('item-amount').value = item?.amount || '';
+  itemSheetPickupType = item?.pickup_type || 'delivered';
+  document.querySelectorAll('#item-modal [data-pickup]').forEach(b => {
+    b.classList.toggle('active', b.dataset.pickup === itemSheetPickupType);
+  });
+  updateItemLocationLabel();
+  document.getElementById('item-delete-btn').hidden = !item;
+  document.getElementById('item-modal').hidden = false;
+  setTimeout(() => document.getElementById('item-name').focus(), 60);
+}
+
+function saveItemFromSheet() {
+  const cat = eventDraftBudgetCategories.find(c => c.id === itemSheetCategoryId);
+  if (!cat) return;
+  const name = document.getElementById('item-name').value.trim();
+  if (!name) return;
+  const item = itemSheetItemId
+    ? cat.items.find(i => i.id === itemSheetItemId)
+    : { id: 'bi_' + Math.random().toString(36).slice(2, 10) };
+  item.name = name;
+  item.pickup_type = itemSheetPickupType;
+  item.pickup_date = document.getElementById('item-date').value.trim();
+  item.pickup_time = document.getElementById('item-time').value;
+  item.pickup_location = document.getElementById('item-location').value.trim();
+  item.amount = Number(document.getElementById('item-amount').value) || 0;
+  if (!itemSheetItemId) cat.items.push(item);
+  closeModal('item-modal');
+  renderBudget();
+  autoSaveEventIfEditing();
+}
+
+function renderPartyItem(item) {
+  const pickup = item.pickup_type || 'delivered';
+  const pickupLabel = pickup === 'pickup' ? 'Ná í' : 'Til mín';
+  const pickupIcon = pickup === 'pickup' ? '🛒' : '🚚';
+  const parts = [];
+  if (item.pickup_date) {
+    const d = parseFlexibleDate(item.pickup_date);
+    const dateStr = d
+      ? `${d.getDate()}. ${MONTHS_IS[d.getMonth()]}`
+      : item.pickup_date;
+    parts.push(dateStr + (item.pickup_time ? ` kl. ${item.pickup_time}` : ''));
+  }
+  if (item.pickup_location) parts.push(item.pickup_location);
+  const metaHtml = parts.map(p => `<span>${escapeHtml(p)}</span>`).join('<span class="party-item-meta-sep">•</span>');
+  const overdue = (() => {
+    if (!item.pickup_date) return false;
+    const d = parseFlexibleDate(item.pickup_date);
+    if (!d) return false;
+    if (item.pickup_time) {
+      const [h, m] = item.pickup_time.split(':');
+      d.setHours(+h || 0, +m || 0);
+    } else {
+      d.setHours(23, 59);
+    }
+    return d.getTime() < Date.now();
+  })();
+  return `
+    <div class="party-item-card" data-item-id="${item.id}">
+      <div class="party-item-head">
+        <div class="party-item-name">${escapeHtml(item.name)}</div>
+        <div class="party-item-cost">${item.amount ? fmtKr(item.amount) + ' kr.' : '—'}</div>
+      </div>
+      <div class="party-item-meta">
+        <span class="party-item-pill ${pickup} ${overdue ? 'overdue' : ''}">${pickupIcon} ${pickupLabel}</span>
+        ${metaHtml ? `<span class="party-item-meta-sep">•</span>${metaHtml}` : ''}
+      </div>
+    </div>
+  `;
 }
 
 function updateBudgetSummary() {

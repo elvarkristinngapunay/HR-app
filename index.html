@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=12" />
+<link rel="stylesheet" href="style.css?v=13" />
 </head>
 <body>
   <div class="app">
@@ -446,6 +446,78 @@
     </div>
   </div>
 
+  <!-- Party planning item sheet (opens on top of event panel) -->
+  <div class="modal" id="item-modal" hidden>
+    <div class="modal-scrim" data-close-modal></div>
+    <div class="modal-card" style="width:480px;">
+      <header class="modal-header">
+        <div>
+          <h2 id="item-modal-title">Nýr hlutur</h2>
+          <p class="subtle" id="item-modal-subtitle">Flokkur</p>
+        </div>
+        <button class="icon-btn" data-close-modal title="Loka">✕</button>
+      </header>
+      <form class="modal-body" id="item-form">
+        <label class="item-field">
+          <span>Nafn</span>
+          <input type="text" id="item-name" required maxlength="120" placeholder="t.d. Blöðrur, Skemmtikraftur, Diskar" />
+        </label>
+
+        <div class="item-field">
+          <span>Afhending</span>
+          <div class="segmented">
+            <button type="button" class="seg-btn active" data-pickup="delivered">
+              <span class="seg-icon">🚚</span>
+              <div>
+                <div class="seg-label">Til mín</div>
+                <div class="seg-sub">Afhent á staðnum</div>
+              </div>
+            </button>
+            <button type="button" class="seg-btn" data-pickup="pickup">
+              <span class="seg-icon">🛒</span>
+              <div>
+                <div class="seg-label">Ná í</div>
+                <div class="seg-sub">Ég sæki sjálf(ur)</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div class="item-row-2">
+          <label class="item-field">
+            <span>Dagsetning</span>
+            <input type="text" id="item-date" placeholder="dd.mm.áááá" inputmode="numeric" autocomplete="off" />
+          </label>
+          <label class="item-field">
+            <span>Tími</span>
+            <input type="time" id="item-time" />
+          </label>
+        </div>
+
+        <label class="item-field" id="item-location-field">
+          <span id="item-location-label">Sótt á</span>
+          <input type="text" id="item-location" placeholder="t.d. Söru, Bæjarhraun 14" />
+        </label>
+
+        <label class="item-field">
+          <span>Kostnaður</span>
+          <div class="item-amount-wrap">
+            <input type="number" id="item-amount" min="0" step="100" placeholder="0" />
+            <span class="amount-suffix">kr.</span>
+          </div>
+        </label>
+
+        <div class="modal-footer">
+          <button type="button" class="btn ghost danger" id="item-delete-btn" hidden>Eyða</button>
+          <div class="footer-right">
+            <button type="button" class="btn" data-close-modal>Hætta við</button>
+            <button type="submit" class="btn primary">Vista</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Public RSVP page (shown when URL is #invite=…) -->
   <div class="invite-page" id="invite-page" hidden>
     <main class="invite-card" id="invite-card">
@@ -453,6 +525,6 @@
     </main>
   </div>
 
-  <script src="app.js?v=12"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>
