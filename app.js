@@ -1824,6 +1824,26 @@ function totalActual() {
 
 function fmtKr(n) { return (n || 0).toLocaleString('is-IS'); }
 
+function guessCategoryEmoji(name) {
+  const n = (name || '').toLowerCase();
+  const map = [
+    [/(veiting|matur|drykk|matj|drykkj)/, '🍽'],
+    [/(skraut|skreyt|blö[dð]r|bloedr)/, '🎈'],
+    [/(gjaf|gjöf)/, '🎁'],
+    [/(hlj[óo][ðd]|d[ýj]|tón|band|dj|karaoke)/, '🎵'],
+    [/(skemmt|dagskr|leik)/, '🎭'],
+    [/(salur|sta[ðd]setning|leiga|le[iý]ga)/, '🏛'],
+    [/(flutning|rúta|bíl|akstur|leig)/, '🚌'],
+    [/(mynd|ljós|foto|photo)/, '📸'],
+    [/(t[æa]kn|comput|proj)/, '💻'],
+    [/(bl[oö]m|blomapunt)/, '💐'],
+    [/(kaka|kokur|kaffi|brau[ðd])/, '🍰'],
+    [/(bj[oó]r|víno|vin|alkohol)/, '🍷'],
+  ];
+  for (const [re, e] of map) if (re.test(n)) return e;
+  return '📦';
+}
+
 function renderBudget() {
   const el = document.getElementById('budget-categories');
   const filter = filterState.items;
@@ -1832,14 +1852,21 @@ function renderBudget() {
     const over = cat.estimated && actual > cat.estimated;
     const visibleItems = cat.items.filter(i => itemMatchesFilter(i, filter));
     const hiddenCount = cat.items.length - visibleItems.length;
+    const emoji = guessCategoryEmoji(cat.name);
+    const doneCount = cat.items.filter(i => i.done).length;
+    const totalCount = cat.items.length;
     const itemsHtml = visibleItems.map(renderPartyItem).join('') +
-      (hiddenCount ? `<p class="field-hint" style="margin: 8px 0;">${hiddenCount} falin (breyttu í „Allt“ til að sjá)</p>` : '') +
-      (!visibleItems.length && !hiddenCount ? '<p class="field-hint" style="margin: 8px 0;">Engir hlutir í þessum flokk ennþá.</p>' : '');
+      (hiddenCount ? `<p class="field-hint" style="margin: 12px 4px; font-size: 13px;">${hiddenCount} falin (breyttu í „Allt“ til að sjá)</p>` : '') +
+      (!visibleItems.length && !hiddenCount ? '<p class="field-hint" style="margin: 12px 4px; font-size: 13px;">Engir hlutir í þessum flokk ennþá.</p>' : '');
     return `
       <div class="budget-category ${cat.open ? 'open' : ''}" data-category-id="${cat.id}">
         <div class="budget-category-header">
           <button type="button" class="budget-category-toggle" title="Opna/loka">▸</button>
-          <input class="budget-category-name" value="${escapeHtml(cat.name)}" />
+          <span class="budget-category-emoji">${emoji}</span>
+          <div class="budget-category-name-wrap">
+            <input class="budget-category-name" value="${escapeHtml(cat.name)}" />
+            ${totalCount ? `<div class="budget-category-count">${doneCount} af ${totalCount} búið</div>` : ''}
+          </div>
           <div class="budget-category-numbers">
             <input class="budget-category-estimated" type="number" value="${cat.estimated ?? ''}" placeholder="áætlun" min="0" step="1000" />
             <span class="budget-category-actual ${over ? 'over' : ''}">${fmtKr(actual)} kr.</span>
