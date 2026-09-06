@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=15" />
+<link rel="stylesheet" href="style.css?v=16" />
 </head>
 <body>
   <div class="app">
@@ -253,48 +253,55 @@
         </div>
         <button class="icon-btn" data-close-modal title="Loka">✕</button>
       </header>
-      <form class="modal-body event-modal-body" id="event-form">
-        <div class="form-grid">
-          <label class="span-2">Titill
-            <input type="text" id="event-title" required maxlength="120" placeholder="t.d. Starfsmannafundur" />
-          </label>
-          <label>Dagsetning
-            <input type="text" id="event-date" placeholder="dd.mm.áááá" inputmode="numeric" autocomplete="off" required />
-          </label>
-          <label>Tími
-            <input type="time" id="event-time" />
-          </label>
-          <label>Staðsetning
-            <input type="text" id="event-location" placeholder="t.d. Fundarherbergi 1" />
-          </label>
-          <label>Áminning
-            <input type="datetime-local" id="event-remind" />
-          </label>
-          <label class="span-2">Lýsing
-            <textarea id="event-description" rows="2" placeholder="Nánari lýsing viðburðar…"></textarea>
-          </label>
-        </div>
+      <nav class="event-tabs event-tabs-top">
+        <button type="button" class="event-tab active" data-event-tab="basic">
+          <span class="event-tab-icon">📋</span>
+          <span>Grunnupplýsingar</span>
+        </button>
+        <button type="button" class="event-tab" data-event-tab="guests">
+          <span class="event-tab-icon">👥</span>
+          <span>Gestir</span>
+          <span class="event-tab-badge" id="guests-count-badge">0</span>
+        </button>
+        <button type="button" class="event-tab" data-event-tab="planning">
+          <span class="event-tab-icon">🎉</span>
+          <span>Planning</span>
+          <span class="event-tab-badge" id="planning-count-badge">0</span>
+        </button>
+        <button type="button" class="event-tab" data-event-tab="timeline">
+          <span class="event-tab-icon">🕐</span>
+          <span>Tímalína</span>
+          <span class="event-tab-badge" id="timeline-count-badge">0</span>
+        </button>
+      </nav>
 
-        <nav class="event-tabs">
-          <button type="button" class="event-tab active" data-event-tab="guests">
-            <span class="event-tab-icon">👥</span>
-            <span>Gestir</span>
-            <span class="event-tab-badge" id="guests-count-badge">0</span>
-          </button>
-          <button type="button" class="event-tab" data-event-tab="planning">
-            <span class="event-tab-icon">📋</span>
-            <span>Planning</span>
-            <span class="event-tab-badge" id="planning-count-badge">0</span>
-          </button>
-          <button type="button" class="event-tab" data-event-tab="timeline">
-            <span class="event-tab-icon">🕐</span>
-            <span>Tímalína</span>
-            <span class="event-tab-badge" id="timeline-count-badge">0</span>
-          </button>
-        </nav>
+      <form class="modal-body event-modal-body" id="event-form">
+        <!-- Grunnupplýsingar tab -->
+        <section class="event-tab-panel active" data-event-panel="basic">
+          <div class="form-grid">
+            <label class="span-2">Titill
+              <input type="text" id="event-title" required maxlength="120" placeholder="t.d. Starfsmannafundur" />
+            </label>
+            <label>Dagsetning
+              <input type="text" id="event-date" placeholder="dd.mm.áááá" inputmode="numeric" autocomplete="off" required />
+            </label>
+            <label>Tími
+              <input type="time" id="event-time" />
+            </label>
+            <label>Staðsetning
+              <input type="text" id="event-location" placeholder="t.d. Fundarherbergi 1" />
+            </label>
+            <label>Áminning
+              <input type="datetime-local" id="event-remind" />
+            </label>
+            <label class="span-2">Lýsing
+              <textarea id="event-description" rows="3" placeholder="Nánari lýsing viðburðar…"></textarea>
+            </label>
+          </div>
+        </section>
 
         <!-- Gestir tab -->
-        <section class="event-tab-panel active" data-event-panel="guests">
+        <section class="event-tab-panel" data-event-panel="guests" hidden>
           <div class="guests-summary">
             <div class="guests-stats">
               <div class="stat-tile"><div class="stat-num" id="stat-invited">0</div><div class="stat-label">Boðið</div></div>
@@ -540,6 +547,6 @@
     </main>
   </div>
 
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>

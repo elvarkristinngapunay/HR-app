@@ -1512,7 +1512,7 @@ function openEventModal(id) {
   renderTaskList();
   renderBudget();
   renderTimeline();
-  switchEventTab('guests');
+  switchEventTab('basic');
   document.getElementById('event-modal').hidden = false;
   setTimeout(() => document.getElementById('event-title').focus(), 50);
 }
@@ -2252,28 +2252,60 @@ function renderEventCard(ev, todayIso) {
   const day = d ? d.getDate() : '?';
   const month = d ? MONTHS_IS[d.getMonth()] : '';
   const past = (ev.date_iso || '') < todayIso;
-  const participants = (ev.participant_ids || []).map(id => findEmp(id)).filter(Boolean);
-  const shown = participants.slice(0, 4);
-  const extra = participants.length - shown.length;
-  const avatarsHtml = participants.length
-    ? shown.map(e => `<span class="event-avatar" style="background:${e.avatar_color}" title="${escapeHtml(e.name)}">${initials(e.name)}</span>`).join('') + (extra > 0 ? `<span class="event-participants-more">+${extra}</span>` : '')
-    : `<span class="event-participants-more">Öllum boðið</span>`;
+
   const meta = [];
   if (ev.time) meta.push(`<span>🕐 ${escapeHtml(ev.time)}</span>`);
   if (ev.location) meta.push(`<span>📍 ${escapeHtml(ev.location)}</span>`);
+
+  // RSVP / attendance summary
+  const partIds = ev.participant_ids || [];
+  const rsvps = ev.rsvps || {};
+  const external = ev.external_guests || [];
+  const total = partIds.length + external.length;
+  let yes = 0, no = 0, maybe = 0;
+  partIds.forEach(id => {
+    const r = rsvps[id];
+    if (r === 'yes') yes++; else if (r === 'no') no++; else if (r === 'maybe') maybe++;
+  });
+  external.forEach(g => {
+    if (g.rsvp === 'yes') yes++; else if (g.rsvp === 'no') no++; else if (g.rsvp === 'maybe') maybe++;
+  });
+  let attendanceHtml = '';
+  if (total === 0) {
+    attendanceHtml = `<div class="event-attendance"><span class="event-attendance-empty">Öllum boðið</span></div>`;
+  } else {
+    const yesPct = total ? (yes / total) * 100 : 0;
+    const maybePlusYesPct = total ? ((yes + maybe) / total) * 100 : 0;
+    const maybeSuffix = maybe ? ` <span class="event-attendance-maybe">+ ${maybe} kannski</span>` : '';
+    attendanceHtml = `
+      <div class="event-attendance">
+        <div class="event-attendance-head">
+          <span class="event-attendance-label">${yes} af ${total} staðfest${maybeSuffix}</span>
+          <span class="event-attendance-pct">${Math.round(yesPct)}%</span>
+        </div>
+        <div class="event-attendance-bar">
+          <div class="event-attendance-fill maybe" style="width:${maybePlusYesPct}%"></div>
+          <div class="event-attendance-fill yes" style="width:${yesPct}%"></div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Tasks progress (kept)
   const tasks = ev.tasks || [];
   const doneCount = tasks.filter(t => t.done).length;
-  const totalCount = tasks.length;
-  const complete = totalCount > 0 && doneCount === totalCount;
-  const pct = totalCount ? (doneCount / totalCount) * 100 : 0;
-  const progressHtml = totalCount ? `
+  const totalTasks = tasks.length;
+  const complete = totalTasks > 0 && doneCount === totalTasks;
+  const pct = totalTasks ? (doneCount / totalTasks) * 100 : 0;
+  const tasksHtml = totalTasks ? `
     <div class="event-progress">
       <div class="event-progress-bar">
         <div class="event-progress-fill ${complete ? '' : 'pending'}" style="width:${pct}%"></div>
       </div>
-      <span class="event-progress-count">${doneCount}/${totalCount}</span>
+      <span class="event-progress-count">${doneCount}/${totalTasks} verkefni</span>
     </div>
   ` : '';
+
   return `
     <div class="event-card ${past ? 'past' : ''}" data-event-id="${ev.id}">
       <div class="event-date-badge">
@@ -2285,8 +2317,8 @@ function renderEventCard(ev, todayIso) {
         <div class="event-title">${escapeHtml(ev.title)}</div>
         ${meta.length ? `<div class="event-meta">${meta.join('')}</div>` : ''}
         ${ev.description ? `<div class="event-description">${escapeHtml(ev.description)}</div>` : ''}
-        <div class="event-participants">${avatarsHtml}</div>
-        ${progressHtml}
+        ${attendanceHtml}
+        ${tasksHtml}
       </div>
     </div>
   `;
