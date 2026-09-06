@@ -1363,7 +1363,28 @@ function initEvents() {
     if (!t) return;
     if (e.target.classList.contains('timeline-title')) t.title = e.target.value;
     else if (e.target.classList.contains('timeline-time')) t.time = e.target.value;
+    else if (e.target.classList.contains('timeline-date-input')) {
+      const raw = e.target.value;
+      const formatted = formatDateStr(raw);
+      if (raw !== formatted) {
+        const atEnd = e.target.selectionStart >= raw.length;
+        e.target.value = formatted;
+        if (atEnd) e.target.setSelectionRange(formatted.length, formatted.length);
+      }
+      t.date = formatted;
+    }
     autoSaveEventIfEditing();
+  });
+
+  // Auto-format date field in the "add timeline item" row
+  document.getElementById('timeline-add-date').addEventListener('input', (e) => {
+    const raw = e.target.value;
+    const formatted = formatDateStr(raw);
+    if (raw !== formatted) {
+      const atEnd = e.target.selectionStart >= raw.length;
+      e.target.value = formatted;
+      if (atEnd) e.target.setSelectionRange(formatted.length, formatted.length);
+    }
   });
   document.querySelectorAll('[data-event-view]').forEach(b => {
     b.addEventListener('click', () => {
@@ -2079,15 +2100,18 @@ function updateBudgetSummary() {
 }
 
 function addTimelineItem() {
+  const date = document.getElementById('timeline-add-date').value.trim();
   const time = document.getElementById('timeline-add-time').value;
   const title = document.getElementById('timeline-add-title').value.trim();
   if (!title) return;
   eventDraftTimeline.push({
     id: 'tl_' + Math.random().toString(36).slice(2, 10),
+    date,
     time,
     title,
     done: false,
   });
+  document.getElementById('timeline-add-date').value = '';
   document.getElementById('timeline-add-time').value = '';
   document.getElementById('timeline-add-title').value = '';
   renderTimeline();
@@ -2095,21 +2119,56 @@ function addTimelineItem() {
   document.getElementById('timeline-add-title').focus();
 }
 
+function timelineSortKey(t) {
+  const d = parseFlexibleDate(t.date);
+  const iso = d ? d.toISOString().slice(0, 10) : '9999-99-99';
+  return iso + 'T' + (t.time || '99:99');
+}
+
 function renderTimeline() {
   const list = document.getElementById('timeline-list');
+  if (!list) return;
   const filter = filterState.timeline;
-  const sorted = eventDraftTimeline.slice().sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+  const sorted = eventDraftTimeline.slice().sort((a, b) => timelineSortKey(a).localeCompare(timelineSortKey(b)));
   const visible = sorted.filter(t => timelineMatchesFilter(t, filter));
   const hidden = sorted.length - visible.length;
-  list.innerHTML = visible.map(t => `
-    <li class="timeline-item ${t.done ? 'done' : ''}" data-timeline-id="${t.id}">
-      <button type="button" class="timeline-done-toggle" data-action="toggle" title="Merkja"></button>
-      <input type="time" class="timeline-time" value="${escapeHtml(t.time || '')}" />
-      <input class="timeline-title" value="${escapeHtml(t.title)}" />
-      <button type="button" class="timeline-remove" data-action="remove" title="Eyða">✕</button>
-    </li>
-  `).join('') + (hidden ? `<li class="field-hint" style="padding: 8px 4px; list-style:none;">${hidden} falin (breyttu í „Allt" til að sjá)</li>` : '');
-  document.getElementById('timeline-count-badge').textContent = eventDraftTimeline.length;
+
+  // Group by date
+  const groups = new Map();
+  visible.forEach(t => {
+    const key = t.date || '';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(t);
+  });
+
+  const parts = [];
+  for (const [dateKey, items] of groups) {
+    const label = dateKey ? formatTimelineDateLabel(dateKey) : 'Ekki tímasett';
+    parts.push(`<div class="timeline-date-header">${escapeHtml(label)}</div>`);
+    parts.push(...items.map(t => `
+      <li class="timeline-item ${t.done ? 'done' : ''}" data-timeline-id="${t.id}">
+        <button type="button" class="timeline-done-toggle" data-action="toggle" title="Merkja"></button>
+        <input type="text" class="timeline-date-input" value="${escapeHtml(t.date || '')}" placeholder="dd.mm.áá" data-action="date" />
+        <input type="time" class="timeline-time" value="${escapeHtml(t.time || '')}" />
+        <input class="timeline-title" value="${escapeHtml(t.title)}" />
+        <button type="button" class="timeline-remove" data-action="remove" title="Eyða">✕</button>
+      </li>
+    `));
+  }
+  if (hidden) parts.push(`<li class="field-hint" style="padding: 8px 4px; list-style:none;">${hidden} falin (breyttu í „Allt" til að sjá)</li>`);
+  list.innerHTML = parts.join('');
+  const badge = document.getElementById('timeline-count-badge');
+  if (badge) badge.textContent = eventDraftTimeline.length;
+}
+
+function formatTimelineDateLabel(dmy) {
+  const d = parseFlexibleDate(dmy);
+  if (!d) return dmy;
+  const today = new Date();
+  const isToday = d.toDateString() === today.toDateString();
+  const label = `${WEEKDAYS_IS[d.getDay()]}, ${d.getDate()}. ${MONTHS_IS_LONG[d.getMonth()]}`;
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  return cap(label) + (isToday ? ' · í dag' : '');
 }
 
 function autoSaveEventIfEditing() {

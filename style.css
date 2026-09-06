@@ -2251,30 +2251,63 @@ body { display: flex; flex-direction: column; }
 .timeline-item:hover .timeline-remove { opacity: 1; }
 .timeline-remove:hover { color: var(--danger); background: var(--danger-soft); }
 .timeline-add {
-  display: flex; gap: 8px; margin-top: 8px;
-  padding-left: 22px;
+  display: flex; gap: 8px; margin-top: 12px;
+  padding: 14px;
+  background: var(--surface-2);
+  border: 2px dashed var(--border-strong);
+  border-radius: 14px;
+  padding-left: 14px;
 }
 .timeline-add input[type=time] {
-  width: 90px;
-  padding: 9px 11px;
+  width: 100px;
+  padding: 12px 14px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: 10px;
+  font-size: 14px;
   outline: none;
   background: white;
   font-family: inherit;
 }
 .timeline-add input[type=text] {
-  flex: 1;
-  padding: 9px 11px;
+  padding: 12px 14px;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 550;
   outline: none;
   background: white;
   font-family: inherit;
+  letter-spacing: -0.1px;
 }
+#timeline-add-date { width: 130px; }
+#timeline-add-title { flex: 1; }
 .timeline-add input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
+.timeline-add .btn { padding: 12px 18px; font-size: 14px; }
+
+/* Date grouping header inside timeline list */
+.timeline-date-header {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 0.1px;
+  padding: 12px 0 8px;
+  margin-left: -22px;
+  position: relative;
+}
+.timeline-date-input {
+  width: 92px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--text-2);
+  outline: none;
+  font-variant-numeric: tabular-nums;
+}
+.timeline-date-input:hover { border-color: var(--border); background: white; }
+.timeline-date-input:focus { border-color: var(--primary); background: white; box-shadow: 0 0 0 2px rgba(79,70,229,.12); }
 
 /* Toast for copy invite */
 .toast {
