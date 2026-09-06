@@ -1145,6 +1145,7 @@ let eventDraftBudget = null;
 let eventDraftBudgetItems = []; // legacy flat items — migrated to categories at load
 let eventDraftBudgetCategories = [];
 let eventDraftTimeline = [];
+const filterState = { tasks: 'todo', items: 'todo', timeline: 'todo' };
 
 function initEvents() {
   document.getElementById('add-event-btn').addEventListener('click', () => openEventModal(null));
@@ -1245,6 +1246,21 @@ function initEvents() {
     b.addEventListener('click', () => switchEventTab(b.dataset.eventTab));
   });
 
+  // Filter toggles (Til að gera / Búið / Allt)
+  document.querySelectorAll('.filter-toggle').forEach(toggle => {
+    toggle.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-filter]');
+      if (!btn) return;
+      const scope = toggle.dataset.filterScope;
+      filterState[scope] = btn.dataset.filter;
+      toggle.querySelectorAll('[data-filter]').forEach(b =>
+        b.classList.toggle('active', b === btn));
+      if (scope === 'tasks') renderTaskList();
+      else if (scope === 'items') renderBudget();
+      else if (scope === 'timeline') renderTimeline();
+    });
+  });
+
   // Budget (categorised)
   document.getElementById('event-budget').addEventListener('input', (e) => {
     eventDraftBudget = e.target.value ? Number(e.target.value) : null;
@@ -1278,6 +1294,14 @@ function initEvents() {
       autoSaveEventIfEditing();
     } else if (e.target.closest('[data-action=open-item-sheet]')) {
       openItemSheet(cat.id, null);
+    } else if (e.target.closest('[data-action=toggle-done]')) {
+      const itemEl = e.target.closest('[data-item-id]');
+      const item = cat.items.find(i => i.id === itemEl.dataset.itemId);
+      if (item) {
+        item.done = !item.done;
+        renderBudget();
+        autoSaveEventIfEditing();
+      }
     } else if (e.target.closest('.party-item-card')) {
       const itemEl = e.target.closest('[data-item-id]');
       openItemSheet(cat.id, itemEl.dataset.itemId);
@@ -1802,10 +1826,15 @@ function fmtKr(n) { return (n || 0).toLocaleString('is-IS'); }
 
 function renderBudget() {
   const el = document.getElementById('budget-categories');
+  const filter = filterState.items;
   el.innerHTML = eventDraftBudgetCategories.map(cat => {
     const actual = categoryActual(cat);
     const over = cat.estimated && actual > cat.estimated;
-    const itemsHtml = cat.items.map(renderPartyItem).join('');
+    const visibleItems = cat.items.filter(i => itemMatchesFilter(i, filter));
+    const hiddenCount = cat.items.length - visibleItems.length;
+    const itemsHtml = visibleItems.map(renderPartyItem).join('') +
+      (hiddenCount ? `<p class="field-hint" style="margin: 8px 0;">${hiddenCount} falin (breyttu í „Allt“ til að sjá)</p>` : '') +
+      (!visibleItems.length && !hiddenCount ? '<p class="field-hint" style="margin: 8px 0;">Engir hlutir í þessum flokk ennþá.</p>' : '');
     return `
       <div class="budget-category ${cat.open ? 'open' : ''}" data-category-id="${cat.id}">
         <div class="budget-category-header">
@@ -1934,8 +1963,10 @@ function saveItemFromSheet() {
 
 function renderPartyItem(item) {
   const pickup = item.pickup_type || 'delivered';
-  const pickupLabel = pickup === 'pickup' ? 'Ná í' : 'Til mín';
-  const pickupIcon = pickup === 'pickup' ? '🛒' : '🚚';
+  const done = !!item.done;
+  const pickupLabel = done ? 'Sótt' : (pickup === 'pickup' ? 'Ná í' : 'Til mín');
+  const pickupIcon = done ? '✓' : (pickup === 'pickup' ? '🛒' : '🚚');
+  const pillClass = done ? 'done' : pickup;
   const parts = [];
   if (item.pickup_date) {
     const d = parseFlexibleDate(item.pickup_date);
@@ -1946,7 +1977,7 @@ function renderPartyItem(item) {
   }
   if (item.pickup_location) parts.push(item.pickup_location);
   const metaHtml = parts.map(p => `<span>${escapeHtml(p)}</span>`).join('<span class="party-item-meta-sep">•</span>');
-  const overdue = (() => {
+  const overdue = !done && (() => {
     if (!item.pickup_date) return false;
     const d = parseFlexibleDate(item.pickup_date);
     if (!d) return false;
@@ -1959,17 +1990,36 @@ function renderPartyItem(item) {
     return d.getTime() < Date.now();
   })();
   return `
-    <div class="party-item-card" data-item-id="${item.id}">
-      <div class="party-item-head">
-        <div class="party-item-name">${escapeHtml(item.name)}</div>
-        <div class="party-item-cost">${item.amount ? fmtKr(item.amount) + ' kr.' : '—'}</div>
-      </div>
-      <div class="party-item-meta">
-        <span class="party-item-pill ${pickup} ${overdue ? 'overdue' : ''}">${pickupIcon} ${pickupLabel}</span>
-        ${metaHtml ? `<span class="party-item-meta-sep">•</span>${metaHtml}` : ''}
+    <div class="party-item-card ${done ? 'done' : ''}" data-item-id="${item.id}">
+      <button type="button" class="party-item-check" data-action="toggle-done" title="Merkja sem sótt"></button>
+      <div class="party-item-body">
+        <div class="party-item-head">
+          <div class="party-item-name">${escapeHtml(item.name)}</div>
+          <div class="party-item-cost">${item.amount ? fmtKr(item.amount) + ' kr.' : '—'}</div>
+        </div>
+        <div class="party-item-meta">
+          <span class="party-item-pill ${pillClass} ${overdue ? 'overdue' : ''}">${pickupIcon} ${pickupLabel}</span>
+          ${metaHtml ? `<span class="party-item-meta-sep">•</span>${metaHtml}` : ''}
+        </div>
       </div>
     </div>
   `;
+}
+
+function itemMatchesFilter(item, filter) {
+  if (filter === 'all') return true;
+  if (filter === 'done') return !!item.done;
+  return !item.done;
+}
+function taskMatchesFilter(task, filter) {
+  if (filter === 'all') return true;
+  if (filter === 'done') return !!task.done;
+  return !task.done;
+}
+function timelineMatchesFilter(t, filter) {
+  if (filter === 'all') return true;
+  if (filter === 'done') return !!t.done;
+  return !t.done;
 }
 
 function updateBudgetSummary() {
@@ -2020,15 +2070,18 @@ function addTimelineItem() {
 
 function renderTimeline() {
   const list = document.getElementById('timeline-list');
+  const filter = filterState.timeline;
   const sorted = eventDraftTimeline.slice().sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
-  list.innerHTML = sorted.map(t => `
+  const visible = sorted.filter(t => timelineMatchesFilter(t, filter));
+  const hidden = sorted.length - visible.length;
+  list.innerHTML = visible.map(t => `
     <li class="timeline-item ${t.done ? 'done' : ''}" data-timeline-id="${t.id}">
       <button type="button" class="timeline-done-toggle" data-action="toggle" title="Merkja"></button>
       <input type="time" class="timeline-time" value="${escapeHtml(t.time || '')}" />
       <input class="timeline-title" value="${escapeHtml(t.title)}" />
       <button type="button" class="timeline-remove" data-action="remove" title="Eyða">✕</button>
     </li>
-  `).join('');
+  `).join('') + (hidden ? `<li class="field-hint" style="padding: 8px 4px; list-style:none;">${hidden} falin (breyttu í „Allt" til að sjá)</li>` : '');
   document.getElementById('timeline-count-badge').textContent = eventDraftTimeline.length;
 }
 
@@ -2082,8 +2135,11 @@ function renderTaskList() {
     .join('');
 
   const todayIso = new Date().toISOString().slice(0, 10);
+  const filter = filterState.tasks;
+  const visibleTasks = eventDraftTasks.filter(t => taskMatchesFilter(t, filter));
+  const hidden = eventDraftTasks.length - visibleTasks.length;
 
-  list.innerHTML = eventDraftTasks.map(t => {
+  list.innerHTML = visibleTasks.map(t => {
     const dueIso = t.due_date ? (parseFlexibleDate(t.due_date)?.toISOString().slice(0, 10) || '') : '';
     const overdue = !t.done && dueIso && dueIso < todayIso;
     return `
@@ -2098,7 +2154,7 @@ function renderTaskList() {
         <button type="button" class="task-delete" data-action="delete" title="Eyða">✕</button>
       </li>
     `;
-  }).join('');
+  }).join('') + (hidden ? `<li class="field-hint" style="padding: 8px 4px; list-style:none;">${hidden} falin (breyttu í „Allt" til að sjá)</li>` : '');
 }
 
 function saveEventFromForm() {

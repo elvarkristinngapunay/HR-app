@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=13" />
+<link rel="stylesheet" href="style.css?v=14" />
 </head>
 <body>
   <div class="app">
@@ -344,6 +344,11 @@
                 <div class="tasks-progress-fill" id="tasks-progress-fill"></div>
               </div>
             </div>
+            <div class="filter-toggle" data-filter-scope="tasks">
+              <button type="button" class="filter-btn active" data-filter="todo">Til að gera</button>
+              <button type="button" class="filter-btn" data-filter="done">Búið</button>
+              <button type="button" class="filter-btn" data-filter="all">Allt</button>
+            </div>
             <ul class="tasks-list" id="tasks-list"></ul>
             <div class="task-add" id="task-add-form">
               <input type="text" id="task-add-input" placeholder="+ Bæta við verkefni og ýttu á Enter" />
@@ -363,6 +368,11 @@
             <div class="budget-progress-bar" id="budget-progress">
               <div class="budget-progress-fill" id="budget-progress-fill"></div>
             </div>
+            <div class="filter-toggle" data-filter-scope="items">
+              <button type="button" class="filter-btn active" data-filter="todo">Ólokið</button>
+              <button type="button" class="filter-btn" data-filter="done">Búið</button>
+              <button type="button" class="filter-btn" data-filter="all">Allt</button>
+            </div>
             <div class="budget-categories" id="budget-categories"></div>
             <div class="budget-add-category">
               <input type="text" id="new-category-name" placeholder="Nýr flokkur (t.d. Skraut)" />
@@ -376,6 +386,11 @@
         <section class="event-tab-panel" data-event-panel="timeline" hidden>
           <div class="timeline-block">
             <p class="field-hint">Skref-fyrir-skref dagskrá á viðburðardegi. Notaðu tímana til að stilla stemmninguna.</p>
+            <div class="filter-toggle" data-filter-scope="timeline">
+              <button type="button" class="filter-btn active" data-filter="todo">Ólokið</button>
+              <button type="button" class="filter-btn" data-filter="done">Búið</button>
+              <button type="button" class="filter-btn" data-filter="all">Allt</button>
+            </div>
             <ol class="timeline-list" id="timeline-list"></ol>
             <div class="timeline-add">
               <input type="time" id="timeline-add-time" />
@@ -525,6 +540,6 @@
     </main>
   </div>
 
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>
