@@ -1278,15 +1278,39 @@ function initEvents() {
   budgetCats.addEventListener('click', (e) => {
     const catEl = e.target.closest('[data-category-id]');
     if (!catEl) return;
-    const cat = eventDraftBudgetCategories.find(c => c.id === catEl.dataset.categoryId);
+    const cat = findCategoryDeep(catEl.dataset.categoryId);
     if (!cat) return;
-    const headerClick = e.target.closest('.budget-category-header');
-    if (e.target.closest('[data-action=delete-category]')) {
+    // Only respond to header actions when the header belongs to THIS category
+    const headerEl = e.target.closest('.budget-category-header');
+    const headerCatEl = headerEl?.closest('[data-category-id]');
+    const isThisHeader = headerCatEl === catEl;
+    if (e.target.closest('[data-action=delete-category]') && isThisHeader) {
       e.stopPropagation();
       if (!confirm(`Eyða flokknum "${cat.name}"?`)) return;
-      eventDraftBudgetCategories = eventDraftBudgetCategories.filter(c => c.id !== cat.id);
+      const parentInfo = findCategoryParent(cat.id);
+      if (parentInfo) parentInfo.list.splice(parentInfo.list.indexOf(cat), 1);
       renderBudget();
       autoSaveEventIfEditing();
+    } else if (e.target.closest('[data-action=add-subcategory]')) {
+      e.stopPropagation();
+      const name = prompt('Nafn undirflokks:');
+      if (!name || !name.trim()) return;
+      cat.subcategories = cat.subcategories || [];
+      cat.subcategories.push({
+        id: 'bc_' + Math.random().toString(36).slice(2, 10),
+        name: name.trim(),
+        estimated: null,
+        open: true,
+        manager_ids: [],
+        subcategories: [],
+        items: [],
+      });
+      cat.open = true;
+      renderBudget();
+      autoSaveEventIfEditing();
+    } else if (e.target.closest('[data-action=add-manager]') && isThisHeader) {
+      e.stopPropagation();
+      openCategoryManagerPicker(cat, e.target.closest('[data-action=add-manager]'));
     } else if (e.target.closest('[data-action=delete-item]')) {
       const itemEl = e.target.closest('[data-item-id]');
       cat.items = cat.items.filter(i => i.id !== itemEl.dataset.itemId);
@@ -1302,10 +1326,22 @@ function initEvents() {
         renderBudget();
         autoSaveEventIfEditing();
       }
+    } else if (e.target.closest('.cat-manager-chip')) {
+      // Click manager chip: remove
+      const chip = e.target.closest('.cat-manager-chip');
+      const idx = [...chip.parentNode.children].indexOf(chip);
+      if (cat.manager_ids && cat.manager_ids[idx] !== undefined) {
+        if (confirm(`Fjarlægja umsjónarmann?`)) {
+          cat.manager_ids.splice(idx, 1);
+          renderBudget();
+          autoSaveEventIfEditing();
+        }
+      }
     } else if (e.target.closest('.party-item-card')) {
       const itemEl = e.target.closest('[data-item-id]');
-      openItemSheet(cat.id, itemEl.dataset.itemId);
-    } else if (headerClick && !e.target.closest('input, button')) {
+      const itemCat = findCategoryOfItem(itemEl.dataset.itemId);
+      if (itemCat) openItemSheet(itemCat.id, itemEl.dataset.itemId);
+    } else if (isThisHeader && !e.target.closest('input, button')) {
       cat.open = !cat.open;
       renderBudget();
     }
@@ -1313,17 +1349,22 @@ function initEvents() {
   budgetCats.addEventListener('input', (e) => {
     const catEl = e.target.closest('[data-category-id]');
     if (!catEl) return;
-    const cat = eventDraftBudgetCategories.find(c => c.id === catEl.dataset.categoryId);
+    const cat = findCategoryDeep(catEl.dataset.categoryId);
     if (!cat) return;
-    if (e.target.classList.contains('budget-category-name')) cat.name = e.target.value;
-    else if (e.target.classList.contains('budget-category-estimated')) cat.estimated = e.target.value ? Number(e.target.value) : null;
+    const headerEl = e.target.closest('.budget-category-header');
+    const headerCatEl = headerEl?.closest('[data-category-id]');
+    const isThisHeader = headerCatEl === catEl;
+    if (isThisHeader && e.target.classList.contains('budget-category-name')) cat.name = e.target.value;
+    else if (isThisHeader && e.target.classList.contains('budget-category-estimated')) cat.estimated = e.target.value ? Number(e.target.value) : null;
     else if (e.target.classList.contains('item-name') || e.target.classList.contains('item-amount')) {
       const itemEl = e.target.closest('[data-item-id]');
-      const item = cat.items.find(i => i.id === itemEl.dataset.itemId);
+      const itemCat = findCategoryOfItem(itemEl.dataset.itemId);
+      if (!itemCat) return;
+      const item = itemCat.items.find(i => i.id === itemEl.dataset.itemId);
       if (!item) return;
       if (e.target.classList.contains('item-name')) item.name = e.target.value;
       else item.amount = Number(e.target.value) || 0;
-    }
+    } else return;
     updateBudgetSummary();
     autoSaveEventIfEditing();
   });
@@ -1795,11 +1836,7 @@ function showToast(msg) {
 function migrateBudgetCategories(ev) {
   if (!ev) return [];
   if (Array.isArray(ev.budget_categories) && ev.budget_categories.length) {
-    return ev.budget_categories.map(c => ({
-      ...c,
-      items: (c.items || []).map(i => ({ ...i })),
-      open: c.open ?? false,
-    }));
+    return ev.budget_categories.map(migrateCategoryNode);
   }
   // Legacy flat items → wrap in one "Almennt" category
   const legacy = ev.budget_items || [];
@@ -1809,12 +1846,104 @@ function migrateBudgetCategories(ev) {
     name: 'Almennt',
     estimated: null,
     open: true,
+    manager_ids: [],
+    subcategories: [],
     items: legacy.map(b => ({
       id: b.id || ('bi_' + Math.random().toString(36).slice(2, 10)),
       name: b.label || b.name || '',
       amount: b.amount || 0,
     })),
   }];
+}
+
+function migrateCategoryNode(c) {
+  return {
+    ...c,
+    items: (c.items || []).map(i => ({ ...i })),
+    subcategories: (c.subcategories || []).map(migrateCategoryNode),
+    manager_ids: Array.isArray(c.manager_ids) ? [...c.manager_ids] : [],
+    open: c.open ?? false,
+  };
+}
+
+function findCategoryDeep(id, cats = eventDraftBudgetCategories) {
+  for (const c of cats) {
+    if (c.id === id) return c;
+    if (c.subcategories?.length) {
+      const f = findCategoryDeep(id, c.subcategories);
+      if (f) return f;
+    }
+  }
+  return null;
+}
+
+function findCategoryParent(id, cats = eventDraftBudgetCategories) {
+  for (const c of cats) {
+    if (c.id === id) return { parent: null, list: cats };
+    if (c.subcategories?.length) {
+      for (const sc of c.subcategories) {
+        if (sc.id === id) return { parent: c, list: c.subcategories };
+      }
+      const f = findCategoryParent(id, c.subcategories);
+      if (f) return f;
+    }
+  }
+  return null;
+}
+
+function categoryDepth(id, cats = eventDraftBudgetCategories, depth = 0) {
+  for (const c of cats) {
+    if (c.id === id) return depth;
+    if (c.subcategories?.length) {
+      const d = categoryDepth(id, c.subcategories, depth + 1);
+      if (d !== -1) return d;
+    }
+  }
+  return -1;
+}
+
+function categoryActualDeep(cat) {
+  const own = cat.items.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const subs = (cat.subcategories || []).reduce((s, c) => s + categoryActualDeep(c), 0);
+  return own + subs;
+}
+
+function categoryItemCountDeep(cat) {
+  return cat.items.length + (cat.subcategories || []).reduce((s, c) => s + categoryItemCountDeep(c), 0);
+}
+
+function categoryDoneCountDeep(cat) {
+  const own = cat.items.filter(i => i.done).length;
+  return own + (cat.subcategories || []).reduce((s, c) => s + categoryDoneCountDeep(c), 0);
+}
+
+function findCategoryOfItem(itemId, cats = eventDraftBudgetCategories) {
+  for (const c of cats) {
+    if (c.items.some(i => i.id === itemId)) return c;
+    if (c.subcategories?.length) {
+      const f = findCategoryOfItem(itemId, c.subcategories);
+      if (f) return f;
+    }
+  }
+  return null;
+}
+
+function openCategoryManagerPicker(cat, anchorEl) {
+  // Simple inline picker via prompt (list employees)
+  const taken = new Set(cat.manager_ids || []);
+  const candidates = state.employees
+    .filter(e => !taken.has(e.id))
+    .sort((a, b) => a.name.localeCompare(b.name, 'is'));
+  if (!candidates.length) { alert('Engir starfsmenn eftir til að bæta við.'); return; }
+  const listStr = candidates.map((e, i) => `${i + 1}. ${e.name}${e.role ? ' — ' + e.role : ''}`).join('\n');
+  const pick = prompt(`Veldu umsjónarmann fyrir "${cat.name}":\n\n${listStr}\n\nSláðu inn númer:`);
+  if (!pick) return;
+  const idx = parseInt(pick, 10) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= candidates.length) return;
+  cat.manager_ids = cat.manager_ids || [];
+  cat.manager_ids.push(candidates[idx].id);
+  renderBudget();
+  autoSaveEventIfEditing();
 }
 
 function addBudgetCategory() {
@@ -1836,11 +1965,11 @@ function addBudgetCategory() {
 }
 
 function categoryActual(cat) {
-  return cat.items.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  return categoryActualDeep(cat);
 }
 
 function totalActual() {
-  return eventDraftBudgetCategories.reduce((s, c) => s + categoryActual(c), 0);
+  return eventDraftBudgetCategories.reduce((s, c) => s + categoryActualDeep(c), 0);
 }
 
 function fmtKr(n) { return (n || 0).toLocaleString('is-IS'); }
@@ -1867,40 +1996,7 @@ function guessCategoryEmoji(name) {
 
 function renderBudget() {
   const el = document.getElementById('budget-categories');
-  const filter = filterState.items;
-  el.innerHTML = eventDraftBudgetCategories.map(cat => {
-    const actual = categoryActual(cat);
-    const over = cat.estimated && actual > cat.estimated;
-    const visibleItems = cat.items.filter(i => itemMatchesFilter(i, filter));
-    const hiddenCount = cat.items.length - visibleItems.length;
-    const emoji = guessCategoryEmoji(cat.name);
-    const doneCount = cat.items.filter(i => i.done).length;
-    const totalCount = cat.items.length;
-    const itemsHtml = visibleItems.map(renderPartyItem).join('') +
-      (hiddenCount ? `<p class="field-hint" style="margin: 12px 4px; font-size: 13px;">${hiddenCount} falin (breyttu í „Allt“ til að sjá)</p>` : '') +
-      (!visibleItems.length && !hiddenCount ? '<p class="field-hint" style="margin: 12px 4px; font-size: 13px;">Engir hlutir í þessum flokk ennþá.</p>' : '');
-    return `
-      <div class="budget-category ${cat.open ? 'open' : ''}" data-category-id="${cat.id}">
-        <div class="budget-category-header">
-          <button type="button" class="budget-category-toggle" title="Opna/loka">▸</button>
-          <span class="budget-category-emoji">${emoji}</span>
-          <div class="budget-category-name-wrap">
-            <input class="budget-category-name" value="${escapeHtml(cat.name)}" />
-            ${totalCount ? `<div class="budget-category-count">${doneCount} af ${totalCount} búið</div>` : ''}
-          </div>
-          <div class="budget-category-numbers">
-            <input class="budget-category-estimated" type="number" value="${cat.estimated ?? ''}" placeholder="áætlun" min="0" step="1000" />
-            <span class="budget-category-actual ${over ? 'over' : ''}">${fmtKr(actual)} kr.</span>
-          </div>
-          <button type="button" class="budget-category-delete" data-action="delete-category" title="Eyða flokki">✕</button>
-        </div>
-        <div class="budget-category-body">
-          <div class="party-items-list">${itemsHtml}</div>
-          <button type="button" class="party-add-item" data-action="open-item-sheet">+ Bæta við hlut</button>
-        </div>
-      </div>
-    `;
-  }).join('');
+  el.innerHTML = eventDraftBudgetCategories.map(cat => renderCategoryNode(cat, 0)).join('');
   updateBudgetSummary();
   const totalItems = eventDraftBudgetCategories.reduce((s, c) => s + c.items.length, 0);
   const badge = document.getElementById('planning-count-badge');
@@ -1939,7 +2035,7 @@ function initItemSheet() {
   });
   document.getElementById('item-delete-btn').addEventListener('click', () => {
     if (!itemSheetCategoryId || !itemSheetItemId) return;
-    const cat = eventDraftBudgetCategories.find(c => c.id === itemSheetCategoryId);
+    const cat = findCategoryDeep(itemSheetCategoryId);
     if (!cat) return;
     const it = cat.items.find(i => i.id === itemSheetItemId);
     if (!it) return;
@@ -1969,7 +2065,7 @@ function updateItemLocationLabel() {
 function openItemSheet(categoryId, itemId) {
   itemSheetCategoryId = categoryId;
   itemSheetItemId = itemId;
-  const cat = eventDraftBudgetCategories.find(c => c.id === categoryId);
+  const cat = findCategoryDeep(categoryId);
   if (!cat) return;
   const item = itemId ? cat.items.find(i => i.id === itemId) : null;
   document.getElementById('item-modal-title').textContent = item ? 'Breyta hlut' : 'Nýr hlutur';
@@ -1990,7 +2086,7 @@ function openItemSheet(categoryId, itemId) {
 }
 
 function saveItemFromSheet() {
-  const cat = eventDraftBudgetCategories.find(c => c.id === itemSheetCategoryId);
+  const cat = findCategoryDeep(itemSheetCategoryId);
   if (!cat) return;
   const name = document.getElementById('item-name').value.trim();
   if (!name) return;
@@ -2007,6 +2103,60 @@ function saveItemFromSheet() {
   closeModal('item-modal');
   renderBudget();
   autoSaveEventIfEditing();
+}
+
+function renderCategoryNode(cat, depth) {
+  const filter = filterState.items;
+  const actual = categoryActualDeep(cat);
+  const over = cat.estimated && actual > cat.estimated;
+  const emoji = guessCategoryEmoji(cat.name);
+  const doneCount = categoryDoneCountDeep(cat);
+  const totalCount = categoryItemCountDeep(cat);
+  const visibleItems = cat.items.filter(i => itemMatchesFilter(i, filter));
+  const hiddenCount = cat.items.length - visibleItems.length;
+  const itemsHtml = visibleItems.map(renderPartyItem).join('') +
+    (hiddenCount ? `<p class="field-hint" style="margin: 8px 4px; font-size: 12.5px;">${hiddenCount} hluti/hlutir falinn (breyttu í „Allt“)</p>` : '');
+  const subsHtml = (cat.subcategories || []).map(sc => renderCategoryNode(sc, depth + 1)).join('');
+  const managers = (cat.manager_ids || []).map(id => findEmp(id)).filter(Boolean);
+  const managersHtml = managers.length
+    ? `<div class="cat-managers">
+        ${managers.map(m => `<span class="cat-manager-chip" title="${escapeHtml(m.name)}">
+          <span class="cat-manager-avatar" style="background:${m.avatar_color}">${initials(m.name)}</span>
+          <span class="cat-manager-name">${escapeHtml(m.name.split(' ')[0])}</span>
+        </span>`).join('')}
+      </div>`
+    : '';
+  const maxDepth = 3;
+  const canAddSub = depth < maxDepth - 1;
+  return `
+    <div class="budget-category ${cat.open ? 'open' : ''} ${depth > 0 ? 'sub sub-' + depth : ''}" data-category-id="${cat.id}" data-depth="${depth}">
+      <div class="budget-category-header">
+        <button type="button" class="budget-category-toggle" title="Opna/loka">▸</button>
+        ${depth === 0 ? `<span class="budget-category-emoji">${emoji}</span>` : ''}
+        <div class="budget-category-name-wrap">
+          <input class="budget-category-name" value="${escapeHtml(cat.name)}" />
+          <div class="cat-meta-row">
+            ${totalCount ? `<span class="budget-category-count">${doneCount} af ${totalCount} búið</span>` : ''}
+            ${managersHtml}
+            <button type="button" class="cat-manager-add-btn" data-action="add-manager" title="Bæta við umsjónarmanni">+ Umsjónarmaður</button>
+          </div>
+        </div>
+        <div class="budget-category-numbers">
+          <input class="budget-category-estimated" type="number" value="${cat.estimated ?? ''}" placeholder="áætlun" min="0" step="1000" />
+          <span class="budget-category-actual ${over ? 'over' : ''}">${fmtKr(actual)} kr.</span>
+        </div>
+        <button type="button" class="budget-category-delete" data-action="delete-category" title="Eyða flokki">✕</button>
+      </div>
+      <div class="budget-category-body">
+        ${subsHtml ? `<div class="subcategories-wrap">${subsHtml}</div>` : ''}
+        <div class="party-items-list">${itemsHtml}</div>
+        <div class="cat-actions">
+          <button type="button" class="party-add-item" data-action="open-item-sheet">+ Bæta við hlut</button>
+          ${canAddSub ? `<button type="button" class="party-add-subcat" data-action="add-subcategory">+ Ný undirflokkur</button>` : ''}
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function renderPartyItem(item) {
