@@ -390,7 +390,7 @@ function renderTree() {
     // Wrap multiple roots in a horizontal row
     const wrap = document.createElement('div');
     wrap.style.display = 'flex';
-    wrap.style.gap = '40px';
+    wrap.style.gap = '16px';
     wrap.style.alignItems = 'flex-start';
     rootList.forEach(r => wrap.appendChild(renderNode(r, query, matchedIds)));
     tree.appendChild(wrap);

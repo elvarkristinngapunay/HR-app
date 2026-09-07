@@ -299,9 +299,9 @@ body { display: flex; flex-direction: column; }
 }
 .node-children {
   display: flex;
-  gap: 28px;
+  gap: 10px;
   align-items: flex-start;
-  padding-top: 36px;
+  padding-top: 28px;
   position: relative;
 }
 /* Vertical line down from parent */
@@ -349,9 +349,9 @@ body { display: flex; flex-direction: column; }
   border: 1px solid rgba(15, 23, 42, 0.06);
   border-radius: var(--radius-lg);
   padding: 18px 18px 16px;
-  min-width: 130px;
-  max-width: 158px;
-  padding: 10px 10px 9px;
+  min-width: 112px;
+  max-width: 138px;
+  padding: 9px 10px 8px;
   box-shadow: var(--shadow-sm), 0 0 0 1px rgba(15,23,42,0.02);
   cursor: pointer;
   transition: transform .2s cubic-bezier(.2,.7,.3,1), box-shadow .2s, border-color .2s;
