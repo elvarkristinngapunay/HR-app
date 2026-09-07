@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=26" />
+<link rel="stylesheet" href="style.css?v=27" />
 </head>
 <body>
   <div class="app">
@@ -61,19 +61,7 @@
         </header>
 
         <main class="people-list-main" id="people-list-main" hidden>
-          <table class="people-table">
-            <thead>
-              <tr>
-                <th>Nafn</th>
-                <th>Starfsheiti</th>
-                <th>Deild</th>
-                <th>Yfirmaður</th>
-                <th>Sími</th>
-                <th>Netfang</th>
-              </tr>
-            </thead>
-            <tbody id="people-list-body"></tbody>
-          </table>
+          <ul class="people-simple-list" id="people-list-body"></ul>
           <div class="empty-state" id="people-list-empty" hidden>
             <div class="empty-icon">👥</div>
             <h2>Engir starfsmenn ennþá</h2>
@@ -606,6 +594,6 @@
     </main>
   </div>
 
-  <script src="app.js?v=26"></script>
+  <script src="app.js?v=27"></script>
 </body>
 </html>

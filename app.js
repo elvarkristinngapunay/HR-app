@@ -338,33 +338,20 @@ function renderPeopleList() {
 
   body.innerHTML = list.map(e => {
     const dept = findDept(e.department_id);
-    const avatarColor = dept?.color || e.avatar_color;
-    const deptCell = dept
-      ? `<span class="cell-dept" style="background:${hexToRgba(dept.color, 0.14)};color:${dept.color}">${escapeHtml(dept.name)}</span>`
-      : '<span class="cell-empty">—</span>';
-    const mgrIds = e.manager_ids || [];
-    const mgrs = mgrIds.map(id => findEmp(id)).filter(Boolean);
-    const mgrCell = mgrs.length
-      ? escapeHtml(mgrs.map(m => m.name.split(' ')[0]).join(', '))
-      : '<span class="cell-empty">—</span>';
+    const dotColor = dept?.color || 'var(--text-3)';
+    const rightBits = [];
+    if (e.role) rightBits.push(escapeHtml(e.role));
+    if (dept) rightBits.push(escapeHtml(dept.name));
     return `
-      <tr data-emp-id="${e.id}">
-        <td>
-          <div class="cell-name">
-            <span class="avatar-sm" style="background:${avatarColor}">${initials(e.name)}</span>
-            <span>${escapeHtml(e.name || 'Nafnlaust')}</span>
-          </div>
-        </td>
-        <td class="cell-role">${e.role ? escapeHtml(e.role) : '<span class="cell-empty">—</span>'}</td>
-        <td>${deptCell}</td>
-        <td class="cell-manager">${mgrCell}</td>
-        <td class="cell-phone">${e.phone ? escapeHtml(e.phone) : '<span class="cell-empty">—</span>'}</td>
-        <td class="cell-email">${e.email ? escapeHtml(e.email) : '<span class="cell-empty">—</span>'}</td>
-      </tr>
+      <li class="people-line" data-emp-id="${e.id}">
+        <span class="people-line-dot" style="background:${dotColor}"></span>
+        <span class="people-line-name">${escapeHtml(e.name || 'Nafnlaust')}</span>
+        <span class="people-line-meta">${rightBits.join(' · ')}</span>
+      </li>
     `;
   }).join('');
 
-  body.querySelectorAll('tr').forEach(row => {
+  body.querySelectorAll('li').forEach(row => {
     row.addEventListener('click', () => openDrawer(row.dataset.empId));
   });
 }
