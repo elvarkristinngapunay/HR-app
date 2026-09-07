@@ -99,7 +99,41 @@ function migrate(s) {
   });
   s.events = s.events || [];
   s.scratchNotes = s.scratchNotes || [];
+  s.departments.forEach(d => { if (!('parent_id' in d)) d.parent_id = null; });
+  // Prune parent_ids that no longer exist
+  const validDeptIds = new Set(s.departments.map(d => d.id));
+  s.departments.forEach(d => { if (d.parent_id && !validDeptIds.has(d.parent_id)) d.parent_id = null; });
   return s;
+}
+
+// ---------- Department tree helpers ----------
+function deptChildren(id) { return state.departments.filter(d => d.parent_id === id); }
+function deptRoots() { return state.departments.filter(d => !d.parent_id); }
+function deptDepth(id, cache = {}) {
+  if (id in cache) return cache[id];
+  const d = findDept(id);
+  if (!d || !d.parent_id) return cache[id] = 0;
+  return cache[id] = 1 + deptDepth(d.parent_id, cache);
+}
+function deptPath(id) {
+  const chain = [];
+  let cur = findDept(id);
+  while (cur) {
+    chain.unshift(cur);
+    cur = cur.parent_id ? findDept(cur.parent_id) : null;
+    if (chain.length > 20) break; // safety
+  }
+  return chain;
+}
+function isDeptDescendant(candidateId, ofId) {
+  if (candidateId === ofId) return true;
+  const stack = deptChildren(ofId).map(d => d.id);
+  while (stack.length) {
+    const id = stack.pop();
+    if (id === candidateId) return true;
+    stack.push(...deptChildren(id).map(d => d.id));
+  }
+  return false;
 }
 
 function isoToDmy(v) {
@@ -389,13 +423,19 @@ function openDrawer(id) {
 function populateDeptSelect(emp) {
   const el = document.getElementById('d-department');
   const options = ['<option value="">— Engin —</option>'];
-  state.departments
-    .slice()
-    .sort((a, b) => a.name.localeCompare(b.name, 'is'))
-    .forEach(d => {
-      const sel = emp.department_id === d.id ? ' selected' : '';
-      options.push(`<option value="${d.id}"${sel}>${escapeHtml(d.name)}</option>`);
-    });
+  const walk = (parentId, depth) => {
+    state.departments
+      .filter(d => d.parent_id === parentId)
+      .sort((a, b) => a.name.localeCompare(b.name, 'is'))
+      .forEach(d => {
+        const sel = emp.department_id === d.id ? ' selected' : '';
+        const indent = '  '.repeat(depth * 2);
+        const prefix = depth > 0 ? '↳ ' : '';
+        options.push(`<option value="${d.id}"${sel}>${indent}${prefix}${escapeHtml(d.name)}</option>`);
+        walk(d.id, depth + 1);
+      });
+  };
+  walk(null, 0);
   options.push('<option value="__new__">+ Ný deild…</option>');
   el.innerHTML = options.join('');
   el.value = emp.department_id || '';
@@ -844,13 +884,14 @@ function renderDocs(emp) {
 }
 
 // ---------- Departments ----------
-function createDepartment(name, color) {
+function createDepartment(name, color, parent_id = null) {
   const usedColors = new Set(state.departments.map(d => d.color));
   const chosenColor = color || DEPT_COLORS.find(c => !usedColors.has(c)) || DEPT_COLORS[state.departments.length % DEPT_COLORS.length];
   const dept = {
     id: 'd_' + Math.random().toString(36).slice(2, 9),
     name: name.trim(),
     color: chosenColor,
+    parent_id,
   };
   state.departments.push(dept);
   save();
@@ -884,11 +925,14 @@ function cycleDeptColor(id) {
 function deleteDepartment(id) {
   const d = findDept(id);
   if (!d) return;
-  const count = state.employees.filter(e => e.department_id === id).length;
-  const msg = count
-    ? `Eyða deildinni "${d.name}"? ${count} starfsmenn missa deild.`
-    : `Eyða deildinni "${d.name}"?`;
+  const subs = deptChildren(id);
+  const empCount = state.employees.filter(e => e.department_id === id).length;
+  const parts = [];
+  if (empCount) parts.push(`${empCount} starfsmenn missa deild`);
+  if (subs.length) parts.push(`${subs.length} undirdeildir færast upp á yfirdeild`);
+  const msg = `Eyða deildinni "${d.name}"?` + (parts.length ? ' ' + parts.join(' · ') + '.' : '');
   if (!confirm(msg)) return;
+  subs.forEach(s => { s.parent_id = d.parent_id || null; });
   state.employees.forEach(e => { if (e.department_id === id) e.department_id = null; });
   state.departments = state.departments.filter(x => x.id !== id);
   save();
@@ -930,24 +974,29 @@ function renderColorPicker(selected) {
 
 function renderDeptList() {
   const el = document.getElementById('dept-list');
-  const list = state.departments.slice().sort((a, b) => a.name.localeCompare(b.name, 'is'));
-  if (!list.length) {
+  if (!state.departments.length) {
     el.innerHTML = '<div class="dept-empty">Engar deildir ennþá. Bættu við þeirri fyrstu að ofan.</div>';
     return;
   }
-  el.innerHTML = list.map(d => {
-    const count = state.employees.filter(e => e.department_id === d.id).length;
-    return `
-      <li class="dept-item" data-dept-id="${d.id}">
-        <span class="dept-dot" style="background:${d.color}" data-action="recolor" title="Breyta lit"></span>
-        <input class="dept-name" value="${escapeHtml(d.name)}" data-action="rename" />
-        <span class="dept-count">${count} ${count === 1 ? 'starfsmaður' : 'starfsmenn'}</span>
-        <div class="dept-actions">
-          <button class="icon-btn danger" data-action="delete" title="Eyða">🗑</button>
-        </div>
-      </li>
-    `;
-  }).join('');
+  const roots = deptRoots().slice().sort((a, b) => a.name.localeCompare(b.name, 'is'));
+  el.innerHTML = roots.map(d => renderDeptRow(d, 0)).join('');
+}
+
+function renderDeptRow(d, depth) {
+  const count = state.employees.filter(e => e.department_id === d.id).length;
+  const subs = deptChildren(d.id).slice().sort((a, b) => a.name.localeCompare(b.name, 'is'));
+  return `
+    <li class="dept-item" data-dept-id="${d.id}" data-depth="${depth}" style="margin-left:${depth * 24}px">
+      <span class="dept-dot" style="background:${d.color}" data-action="recolor" title="Breyta lit"></span>
+      <input class="dept-name" value="${escapeHtml(d.name)}" data-action="rename" />
+      <span class="dept-count">${count} ${count === 1 ? 'starfsmaður' : 'starfsmenn'}</span>
+      <div class="dept-actions">
+        <button class="icon-btn" data-action="add-sub" title="Bæta við undirdeild">+</button>
+        <button class="icon-btn danger" data-action="delete" title="Eyða">🗑</button>
+      </div>
+    </li>
+    ${subs.map(s => renderDeptRow(s, depth + 1)).join('')}
+  `;
 }
 
 // ---------- Zoom ----------
@@ -1068,6 +1117,14 @@ function init() {
       deleteDepartment(id);
     } else if (e.target.closest('[data-action=recolor]')) {
       cycleDeptColor(id);
+    } else if (e.target.closest('[data-action=add-sub]')) {
+      const parent = findDept(id);
+      const name = prompt(`Nafn undirdeildar undir "${parent?.name || ''}":`);
+      if (!name || !name.trim()) return;
+      createDepartment(name.trim(), null, id);
+      renderDeptList();
+      renderTree();
+      if (selectedId) populateDeptSelect(findEmp(selectedId));
     }
   });
   deptList.addEventListener('change', (e) => {
