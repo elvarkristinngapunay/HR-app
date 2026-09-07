@@ -272,6 +272,17 @@ function primaryManagerId(emp) { return (emp.manager_ids && emp.manager_ids[0]) 
 function childrenOf(id) { return state.employees.filter(e => primaryManagerId(e) === id); }
 function roots() { return state.employees.filter(e => !primaryManagerId(e)); }
 
+// Sort siblings so people in the same department stand next to each other.
+// Order: by department name (empty last), then by employee name.
+function sortSiblingsByDept(list) {
+  return list.slice().sort((a, b) => {
+    const da = deptName(a.department_id) || '￿';
+    const db = deptName(b.department_id) || '￿';
+    if (da !== db) return da.localeCompare(db, 'is');
+    return (a.name || '').localeCompare(b.name || '', 'is');
+  });
+}
+
 // Prevent picking a manager that would create a cycle in the tree.
 // Only checks descendants via the *primary* manager (which shapes the tree).
 function isDescendant(candidateId, ofId) {
@@ -310,7 +321,7 @@ function renderTree() {
     });
   }
 
-  const rootList = roots();
+  const rootList = sortSiblingsByDept(roots());
   tree.innerHTML = '';
 
   if (rootList.length > 1) {
@@ -329,7 +340,7 @@ function renderTree() {
 function renderNode(emp, query, matchedIds) {
   const group = document.createElement('div');
   group.className = 'node-group';
-  const kids = childrenOf(emp.id);
+  const kids = sortSiblingsByDept(childrenOf(emp.id));
   if (kids.length) group.classList.add('has-children');
 
   group.appendChild(renderCard(emp, query, matchedIds));
