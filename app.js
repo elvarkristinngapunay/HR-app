@@ -1391,6 +1391,12 @@ function init() {
   });
   switchPeopleView(peopleView);
 
+  // Training section — placeholder handlers until the module system lands
+  const trainingPlaceholder = () => alert('Þjálfunar-módúlar koma á næsta skrefi. Segðu til þegar þú vilt smíða þau.');
+  document.getElementById('training-library-btn').addEventListener('click', trainingPlaceholder);
+  document.getElementById('training-assign-btn').addEventListener('click', trainingPlaceholder);
+  document.getElementById('training-empty-add-btn').addEventListener('click', trainingPlaceholder);
+
   // Sidebar toggle (Claude-style)
   const SIDEBAR_KEY = 'hr-app.sidebar-collapsed';
   const appEl = document.querySelector('.app');
@@ -1454,6 +1460,26 @@ function switchSection(name) {
   localStorage.setItem(SECTION_KEY, name);
   if (name === 'events') renderEvents();
   if (name === 'scratch') renderScratch();
+  if (name === 'training') renderTraining();
+}
+
+// ---------- Training (scaffold — module system comes next) ----------
+function renderTraining() {
+  const list = document.getElementById('training-list');
+  const empty = document.getElementById('training-empty');
+  const summary = document.getElementById('training-summary');
+  // No data yet — show empty state until we build the module system
+  const inProgress = state.employees.filter(e => (e.training || []).length > 0);
+  if (!inProgress.length) {
+    list.innerHTML = '';
+    summary.hidden = true;
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+  summary.hidden = false;
+  // Later: compute stats and render employee cards with progress
+  list.innerHTML = '';
 }
 
 // ---------- Events ----------
