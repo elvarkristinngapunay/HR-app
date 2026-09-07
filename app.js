@@ -1391,6 +1391,15 @@ function init() {
   });
   switchPeopleView(peopleView);
 
+  // Sidebar toggle (Claude-style)
+  const SIDEBAR_KEY = 'hr-app.sidebar-collapsed';
+  const appEl = document.querySelector('.app');
+  if (localStorage.getItem(SIDEBAR_KEY) === '1') appEl.classList.add('sidebar-collapsed');
+  document.getElementById('sidebar-toggle').addEventListener('click', () => {
+    appEl.classList.toggle('sidebar-collapsed');
+    localStorage.setItem(SIDEBAR_KEY, appEl.classList.contains('sidebar-collapsed') ? '1' : '0');
+  });
+
   // Auto-format the note date input (dd.mm.yyyy)
   const noteDate = document.getElementById('note-date');
   if (noteDate) {
@@ -1529,28 +1538,51 @@ function initEvents() {
     });
   });
 
-  // Add external guest
-  document.getElementById('add-external-guest').addEventListener('click', () => {
-    const nameEl = document.getElementById('external-guest-name');
-    const emailEl = document.getElementById('external-guest-email');
-    const name = nameEl.value.trim();
-    if (!name) return;
-    eventDraftExternalGuests.push({
-      id: 'ex_' + Math.random().toString(36).slice(2, 10),
-      name,
-      email: emailEl.value.trim(),
-      rsvp: null,
-    });
-    nameEl.value = ''; emailEl.value = '';
+  // Guest search box — inline results dropdown of matching employees
+  const searchInput = document.getElementById('guest-search-input');
+  const resultsBox = document.getElementById('guest-search-results');
+
+  const renderGuestSearchResults = () => {
+    const q = searchInput.value.toLowerCase().trim();
+    if (!q) { resultsBox.hidden = true; resultsBox.innerHTML = ''; return; }
+    const taken = new Set(eventDraftParticipants);
+    const matches = state.employees
+      .filter(emp => !taken.has(emp.id))
+      .filter(emp => (emp.name + ' ' + (emp.role || '') + ' ' + deptName(emp.department_id)).toLowerCase().includes(q))
+      .sort((a, b) => a.name.localeCompare(b.name, 'is'))
+      .slice(0, 20);
+    if (!matches.length) {
+      resultsBox.innerHTML = '<div class="guest-search-empty">Enginn starfsmaður fannst.</div>';
+    } else {
+      resultsBox.innerHTML = matches.map(e => `
+        <div class="guest-search-result" data-emp-id="${e.id}">
+          <span class="chip-avatar" style="background:${findDept(e.department_id)?.color || e.avatar_color}">${initials(e.name)}</span>
+          <span>${escapeHtml(e.name)}</span>
+          ${e.role ? `<span class="role">${escapeHtml(e.role)}</span>` : ''}
+        </div>
+      `).join('');
+    }
+    resultsBox.hidden = false;
+  };
+
+  searchInput.addEventListener('input', renderGuestSearchResults);
+  searchInput.addEventListener('focus', renderGuestSearchResults);
+  searchInput.addEventListener('blur', () => {
+    // small delay so click on result registers first
+    setTimeout(() => { resultsBox.hidden = true; }, 150);
+  });
+  resultsBox.addEventListener('mousedown', (e) => {
+    const row = e.target.closest('[data-emp-id]');
+    if (!row) return;
+    e.preventDefault();
+    if (!eventDraftParticipants.includes(row.dataset.empId)) {
+      eventDraftParticipants.push(row.dataset.empId);
+    }
+    searchInput.value = '';
+    resultsBox.hidden = true;
     refreshGuestsUI();
     autoSaveEventIfEditing();
-    nameEl.focus();
-  });
-  document.getElementById('external-guest-name').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('add-external-guest').click(); }
-  });
-  document.getElementById('external-guest-email').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('add-external-guest').click(); }
+    searchInput.focus();
   });
 
   // Copy invite link

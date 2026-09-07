@@ -4,9 +4,15 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=30" />
+<link rel="stylesheet" href="style.css?v=31" />
 </head>
 <body>
+  <button type="button" class="sidebar-toggle" id="sidebar-toggle" title="Fela / sýna hliðardálk">
+    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="3" y="4" width="14" height="12" rx="2.5" stroke="currentColor" stroke-width="1.6"/>
+      <line x1="8" y1="4" x2="8" y2="16" stroke="currentColor" stroke-width="1.6"/>
+    </svg>
+  </button>
   <div class="app">
     <!-- Sidebar -->
     <aside class="sidebar">
@@ -368,22 +374,17 @@
               </select>
               <button type="button" class="btn ghost quick-clear" id="quick-clear" hidden>Hreinsa</button>
             </div>
-            <select id="event-participant-add">
+            <div class="guest-search-box">
+              <input type="search" id="guest-search-input" placeholder="🔍 Leita eftir starfsmanni til að bæta við…" autocomplete="off" />
+              <div class="guest-search-results" id="guest-search-results" hidden></div>
+            </div>
+            <select id="event-participant-add" hidden>
               <option value="">+ Bæta einstaka starfsmanni…</option>
             </select>
           </div>
 
           <ul class="guests-list" id="guests-list"></ul>
-
-          <div class="external-guests">
-            <h4>Ytri gestir</h4>
-            <ul class="guests-list" id="external-guests-list"></ul>
-            <div class="external-guest-add">
-              <input type="text" id="external-guest-name" placeholder="Nafn" />
-              <input type="email" id="external-guest-email" placeholder="Netfang (valfrjálst)" />
-              <button type="button" class="btn" id="add-external-guest">+ Bæta við</button>
-            </div>
-          </div>
+          <ul class="guests-list" id="external-guests-list" hidden></ul>
         </section>
 
         <!-- Planning tab -->
@@ -603,6 +604,6 @@
     </main>
   </div>
 
-  <script src="app.js?v=28"></script>
+  <script src="app.js?v=29"></script>
 </body>
 </html>
