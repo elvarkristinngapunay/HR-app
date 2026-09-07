@@ -99,10 +99,17 @@ function migrate(s) {
   });
   s.events = s.events || [];
   s.scratchNotes = s.scratchNotes || [];
-  s.departments.forEach(d => { if (!('parent_id' in d)) d.parent_id = null; });
+  s.departments.forEach(d => {
+    if (!('parent_id' in d)) d.parent_id = null;
+    if (!('manager_id' in d)) d.manager_id = null;
+  });
   // Prune parent_ids that no longer exist
   const validDeptIds = new Set(s.departments.map(d => d.id));
-  s.departments.forEach(d => { if (d.parent_id && !validDeptIds.has(d.parent_id)) d.parent_id = null; });
+  const validEmpIds = new Set(s.employees.map(e => e.id));
+  s.departments.forEach(d => {
+    if (d.parent_id && !validDeptIds.has(d.parent_id)) d.parent_id = null;
+    if (d.manager_id && !validEmpIds.has(d.manager_id)) d.manager_id = null;
+  });
   return s;
 }
 
@@ -544,10 +551,18 @@ function renderPickerRow(id, name, color, selectedId, depth, addable) {
   const addBtn = addable
     ? `<button type="button" class="dept-picker-add" data-action="add-child" data-parent="${id}" title="Bæta við undirdeild">+</button>`
     : '';
+  const dept = id ? findDept(id) : null;
+  const mgr = dept?.manager_id ? findEmp(dept.manager_id) : null;
+  const mgrHtml = mgr
+    ? `<span class="dept-picker-mgr" title="Umsjónarmaður: ${escapeHtml(mgr.name)}">
+        <span class="dept-picker-mgr-avatar" style="background:${mgr.avatar_color}">${initials(mgr.name)}</span>
+      </span>`
+    : '';
   return `
     <div class="dept-picker-row${selected}" data-action="pick" data-dept-id="${id ?? ''}" style="${indentStyle}">
       ${dotHtml}
       <span class="dept-picker-name">${escapeHtml(name)}</span>
+      ${mgrHtml}
       ${addBtn}
     </div>
   `;
@@ -986,6 +1001,7 @@ function createDepartment(name, color, parent_id = null) {
     name: name.trim(),
     color: chosenColor,
     parent_id,
+    manager_id: null,
   };
   state.departments.push(dept);
   save();
@@ -1093,11 +1109,33 @@ function renderDeptRow(d, depth) {
       });
   };
   walk(null, 0);
+  // Manager options — every employee, sorted by name
+  const mgrOptions = ['<option value="">— Umsjónarmaður —</option>'];
+  state.employees
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name, 'is'))
+    .forEach(e => {
+      const sel = d.manager_id === e.id ? ' selected' : '';
+      mgrOptions.push(`<option value="${e.id}"${sel}>${escapeHtml(e.name)}${e.role ? ' — ' + escapeHtml(e.role) : ''}</option>`);
+    });
+  const managerEmp = d.manager_id ? findEmp(d.manager_id) : null;
+  const managerChip = managerEmp
+    ? `<span class="dept-manager-chip" title="Umsjónarmaður: ${escapeHtml(managerEmp.name)}">
+        <span class="dept-manager-avatar" style="background:${managerEmp.avatar_color}">${initials(managerEmp.name)}</span>
+        <span>${escapeHtml(managerEmp.name.split(' ')[0])}</span>
+      </span>`
+    : '';
   return `
     <li class="dept-item" data-dept-id="${d.id}" data-depth="${depth}" style="margin-left:${depth * 24}px">
       <span class="dept-dot" style="background:${d.color}" data-action="recolor" title="Breyta lit"></span>
-      <input class="dept-name" value="${escapeHtml(d.name)}" data-action="rename" />
-      <select class="dept-parent" data-action="set-parent" title="Undir hvaða deild">${parentOptions.join('')}</select>
+      <div class="dept-main">
+        <input class="dept-name" value="${escapeHtml(d.name)}" data-action="rename" />
+        <div class="dept-meta-row">
+          ${managerChip}
+          <select class="dept-manager-select" data-action="set-manager" title="Umsjónarmaður">${mgrOptions.join('')}</select>
+          <select class="dept-parent" data-action="set-parent" title="Undir hvaða deild">${parentOptions.join('')}</select>
+        </div>
+      </div>
       <span class="dept-count">${count} ${count === 1 ? 'starfsmaður' : 'starfsmenn'}</span>
       <div class="dept-actions">
         <button class="icon-btn" data-action="add-sub" title="Bæta við undirdeild">+</button>
@@ -1259,6 +1297,12 @@ function init() {
       renderDeptList();
       renderTree();
       if (selectedId) populateDeptSelect(findEmp(selectedId));
+    } else if (e.target.classList.contains('dept-manager-select')) {
+      const d = findDept(id);
+      if (!d) return;
+      d.manager_id = e.target.value || null;
+      save();
+      renderDeptList();
     }
   });
 
