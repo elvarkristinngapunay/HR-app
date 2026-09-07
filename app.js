@@ -297,6 +297,78 @@ function isDescendant(candidateId, ofId) {
 }
 
 // ---------- Rendering: tree ----------
+const PEOPLE_VIEW_KEY = 'hr-app.people-view';
+let peopleView = localStorage.getItem(PEOPLE_VIEW_KEY) || 'tree';
+
+function switchPeopleView(name) {
+  peopleView = name;
+  localStorage.setItem(PEOPLE_VIEW_KEY, name);
+  document.querySelectorAll('[data-people-view]').forEach(b => {
+    b.classList.toggle('active', b.dataset.peopleView === name);
+  });
+  document.getElementById('canvas-wrap').hidden = (name !== 'tree');
+  document.getElementById('people-list-main').hidden = (name !== 'list');
+  renderTree();
+}
+
+function renderPeopleList() {
+  const body = document.getElementById('people-list-body');
+  const empty = document.getElementById('people-list-empty');
+  const query = (document.getElementById('search').value || '').toLowerCase().trim();
+  let list = state.employees.slice();
+  if (query) {
+    list = list.filter(e => {
+      const hay = [e.name, e.role, deptName(e.department_id), e.email, e.phone].join(' ').toLowerCase();
+      return hay.includes(query);
+    });
+  }
+  list.sort((a, b) => {
+    const da = deptName(a.department_id) || '￿';
+    const db = deptName(b.department_id) || '￿';
+    if (da !== db) return da.localeCompare(db, 'is');
+    return (a.name || '').localeCompare(b.name || '', 'is');
+  });
+
+  if (!list.length) {
+    body.innerHTML = '';
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+
+  body.innerHTML = list.map(e => {
+    const dept = findDept(e.department_id);
+    const avatarColor = dept?.color || e.avatar_color;
+    const deptCell = dept
+      ? `<span class="cell-dept" style="background:${hexToRgba(dept.color, 0.14)};color:${dept.color}">${escapeHtml(dept.name)}</span>`
+      : '<span class="cell-empty">—</span>';
+    const mgrIds = e.manager_ids || [];
+    const mgrs = mgrIds.map(id => findEmp(id)).filter(Boolean);
+    const mgrCell = mgrs.length
+      ? escapeHtml(mgrs.map(m => m.name.split(' ')[0]).join(', '))
+      : '<span class="cell-empty">—</span>';
+    return `
+      <tr data-emp-id="${e.id}">
+        <td>
+          <div class="cell-name">
+            <span class="avatar-sm" style="background:${avatarColor}">${initials(e.name)}</span>
+            <span>${escapeHtml(e.name || 'Nafnlaust')}</span>
+          </div>
+        </td>
+        <td class="cell-role">${e.role ? escapeHtml(e.role) : '<span class="cell-empty">—</span>'}</td>
+        <td>${deptCell}</td>
+        <td class="cell-manager">${mgrCell}</td>
+        <td class="cell-phone">${e.phone ? escapeHtml(e.phone) : '<span class="cell-empty">—</span>'}</td>
+        <td class="cell-email">${e.email ? escapeHtml(e.email) : '<span class="cell-empty">—</span>'}</td>
+      </tr>
+    `;
+  }).join('');
+
+  body.querySelectorAll('tr').forEach(row => {
+    row.addEventListener('click', () => openDrawer(row.dataset.empId));
+  });
+}
+
 function renderTree() {
   const tree = document.getElementById('tree');
   const empty = document.getElementById('empty-state');
@@ -304,6 +376,9 @@ function renderTree() {
 
   count.textContent = state.employees.length + ' ' +
     (state.employees.length === 1 ? 'starfsmaður' : 'starfsmenn');
+
+  // Also render list view (so tab switching is instant)
+  renderPeopleList();
 
   if (state.employees.length === 0) {
     tree.innerHTML = '';
@@ -1322,6 +1397,12 @@ function init() {
   bindDrawerFields();
   renderTree();
   applyZoom();
+
+  // People view toggle
+  document.querySelectorAll('[data-people-view]').forEach(b => {
+    b.addEventListener('click', () => switchPeopleView(b.dataset.peopleView));
+  });
+  switchPeopleView(peopleView);
 
   // Auto-format the note date input (dd.mm.yyyy)
   const noteDate = document.getElementById('note-date');

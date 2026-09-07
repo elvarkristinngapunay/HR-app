@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=24" />
+<link rel="stylesheet" href="style.css?v=25" />
 </head>
 <body>
   <div class="app">
@@ -43,13 +43,38 @@
             <p class="subtle">Skipurit fyrirtækisins</p>
           </div>
           <div class="section-actions">
+            <div class="event-view-toggle" id="people-view-toggle">
+              <button class="chip active" data-people-view="tree">Skipurit</button>
+              <button class="chip" data-people-view="list">Listi</button>
+            </div>
             <input type="search" id="search" placeholder="Leita eftir nafni, deild, netfangi…" />
             <button class="btn" id="depts-btn">Deildir</button>
             <button class="btn primary" id="add-employee-btn">+ Nýr starfsmaður</button>
           </div>
         </header>
 
-        <main class="canvas-wrap">
+        <main class="people-list-main" id="people-list-main" hidden>
+          <table class="people-table">
+            <thead>
+              <tr>
+                <th>Nafn</th>
+                <th>Starfsheiti</th>
+                <th>Deild</th>
+                <th>Yfirmaður</th>
+                <th>Sími</th>
+                <th>Netfang</th>
+              </tr>
+            </thead>
+            <tbody id="people-list-body"></tbody>
+          </table>
+          <div class="empty-state" id="people-list-empty" hidden>
+            <div class="empty-icon">👥</div>
+            <h2>Engir starfsmenn ennþá</h2>
+            <p>Byrjaðu á að bæta við fyrsta starfsmanninum þínum.</p>
+          </div>
+        </main>
+
+        <main class="canvas-wrap" id="canvas-wrap">
           <div class="canvas-controls">
             <button class="chip" data-zoom="out">−</button>
             <button class="chip" data-zoom="reset">100%</button>
@@ -574,6 +599,6 @@
     </main>
   </div>
 
-  <script src="app.js?v=25"></script>
+  <script src="app.js?v=26"></script>
 </body>
 </html>
