@@ -346,8 +346,9 @@ body { display: flex; flex-direction: column; }
   border: 1px solid rgba(15, 23, 42, 0.06);
   border-radius: var(--radius-lg);
   padding: 18px 18px 16px;
-  min-width: 210px;
-  max-width: 240px;
+  min-width: 180px;
+  max-width: 210px;
+  padding: 14px 14px 12px;
   box-shadow: var(--shadow-sm), 0 0 0 1px rgba(15,23,42,0.02);
   cursor: pointer;
   transition: transform .2s cubic-bezier(.2,.7,.3,1), box-shadow .2s, border-color .2s;

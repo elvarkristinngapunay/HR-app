@@ -370,8 +370,9 @@ function renderCard(emp, query, matchedIds) {
     ? `<div class="card-extra-managers" title="Fleiri yfirmenn">+${extraManagers} yfirmaður</div>`
     : '';
 
+  const avatarColor = dept?.color || emp.avatar_color;
   card.innerHTML = `
-    <div class="avatar" style="background:${emp.avatar_color}">${initials(emp.name)}</div>
+    <div class="avatar" style="background:${avatarColor}">${initials(emp.name)}</div>
     <div class="card-name">${escapeHtml(emp.name || 'Nafnlaust')}</div>
     <div class="card-role">${escapeHtml(emp.role || '—')}</div>
     ${deptHtml}
@@ -415,7 +416,8 @@ function openDrawer(id) {
 
   const av = document.getElementById('d-avatar');
   av.textContent = initials(emp.name);
-  av.style.background = emp.avatar_color;
+  const drawerDept = findDept(emp.department_id);
+  av.style.background = drawerDept?.color || emp.avatar_color;
 
   setVal('d-name', emp.name);
   setVal('d-role', emp.role);
