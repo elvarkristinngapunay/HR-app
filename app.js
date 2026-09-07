@@ -1121,6 +1121,14 @@ function initSections() {
   switchSection(saved);
 }
 function switchSection(name) {
+  // Close any modal or drawer so the user isn't stuck behind them.
+  ['event-modal', 'scratch-modal', 'depts-modal', 'item-modal'].forEach(id => {
+    const m = document.getElementById(id);
+    if (m) m.hidden = true;
+  });
+  const drawer = document.getElementById('drawer');
+  if (drawer && !drawer.hidden) closeDrawer();
+
   document.querySelectorAll('.sidebar-item').forEach(b => {
     b.classList.toggle('active', b.dataset.section === name);
   });
@@ -1998,9 +2006,9 @@ function renderBudget() {
   const el = document.getElementById('budget-categories');
   el.innerHTML = eventDraftBudgetCategories.map(cat => renderCategoryNode(cat, 0)).join('');
   updateBudgetSummary();
-  const totalItems = eventDraftBudgetCategories.reduce((s, c) => s + c.items.length, 0);
-  const badge = document.getElementById('planning-count-badge');
-  if (badge) badge.textContent = eventDraftTasks.length + totalItems;
+  const totalItems = eventDraftBudgetCategories.reduce((s, c) => s + categoryItemCountDeep(c), 0);
+  const badge = document.getElementById('budget-count-badge');
+  if (badge) badge.textContent = totalItems;
 }
 
 // ---------- Party item sheet ----------
@@ -2307,7 +2315,7 @@ function renderTimeline() {
   }
   if (hidden) parts.push(`<li class="field-hint" style="padding: 8px 4px; list-style:none;">${hidden} falin (breyttu í „Allt" til að sjá)</li>`);
   list.innerHTML = parts.join('');
-  const badge = document.getElementById('timeline-count-badge');
+  const badge = document.getElementById('schedule-count-badge');
   if (badge) badge.textContent = eventDraftTimeline.length;
 }
 
@@ -2360,8 +2368,8 @@ function renderTaskList() {
     ? `${done} af ${total} lokið`
     : 'Engin verkefni ennþá';
   progressFill.style.width = total ? `${(done / total) * 100}%` : '0';
-  const planningBadge = document.getElementById('planning-count-badge');
-  if (planningBadge) planningBadge.textContent = total + eventDraftBudgetItems.length;
+  const tasksBadge = document.getElementById('tasks-count-badge');
+  if (tasksBadge) tasksBadge.textContent = total;
   if (!total) { list.innerHTML = ''; return; }
 
   const assigneeOptions = state.employees

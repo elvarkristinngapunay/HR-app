@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=18" />
+<link rel="stylesheet" href="style.css?v=20" />
 </head>
 <body>
   <div class="app">
@@ -263,10 +263,20 @@
           <span>Gestir</span>
           <span class="event-tab-badge" id="guests-count-badge">0</span>
         </button>
-        <button type="button" class="event-tab" data-event-tab="planning">
-          <span class="event-tab-icon">🎉</span>
-          <span>Planning</span>
-          <span class="event-tab-badge" id="planning-count-badge">0</span>
+        <button type="button" class="event-tab" data-event-tab="tasks">
+          <span class="event-tab-icon">✅</span>
+          <span>Verkefni</span>
+          <span class="event-tab-badge" id="tasks-count-badge">0</span>
+        </button>
+        <button type="button" class="event-tab" data-event-tab="budget">
+          <span class="event-tab-icon">💰</span>
+          <span>Fjárhagsáætlun</span>
+          <span class="event-tab-badge" id="budget-count-badge">0</span>
+        </button>
+        <button type="button" class="event-tab" data-event-tab="schedule">
+          <span class="event-tab-icon">🗓</span>
+          <span>Dagskrá</span>
+          <span class="event-tab-badge" id="schedule-count-badge">0</span>
         </button>
       </nav>
 
@@ -335,7 +345,7 @@
         </section>
 
         <!-- Planning tab -->
-        <section class="event-tab-panel" data-event-panel="planning" hidden>
+        <section class="event-tab-panel" data-event-panel="tasks" hidden>
           <div class="planning-block">
             <div class="planning-header">
               <div>
@@ -356,7 +366,10 @@
               <input type="text" id="task-add-input" placeholder="+ Bæta við verkefni og ýttu á Enter" />
             </div>
           </div>
+        </section>
 
+        <!-- Fjárhagsáætlun tab -->
+        <section class="event-tab-panel" data-event-panel="budget" hidden>
           <div class="planning-block">
             <div class="planning-header">
               <div>
@@ -382,7 +395,10 @@
               <button type="button" class="btn" id="add-category-btn">+ Bæta við flokki</button>
             </div>
           </div>
+        </section>
 
+        <!-- Dagskrá tab -->
+        <section class="event-tab-panel" data-event-panel="schedule" hidden>
           <div class="planning-block">
             <div class="planning-header">
               <div>
@@ -545,6 +561,6 @@
     </main>
   </div>
 
-  <script src="app.js?v=18"></script>
+  <script src="app.js?v=19"></script>
 </body>
 </html>
