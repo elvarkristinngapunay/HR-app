@@ -2917,3 +2917,139 @@ body { display: flex; flex-direction: column; }
   color: var(--primary);
   background: var(--primary-soft);
 }
+
+/* ============== Employee dept picker (with add-sub on hover) ============== */
+.dept-picker {
+  position: relative;
+}
+.dept-picker-btn {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text);
+  background: white;
+  outline: none;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.dept-picker-btn:hover { border-color: var(--border-strong); }
+.dept-picker.open .dept-picker-btn {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79,70,229,.12);
+}
+.dept-picker-chevron {
+  color: var(--text-3);
+  font-size: 10px;
+  flex-shrink: 0;
+  transition: transform .15s;
+}
+.dept-picker.open .dept-picker-chevron { transform: rotate(180deg); }
+
+.dept-picker-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  z-index: 40;
+  max-height: 340px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.dept-picker-search {
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  outline: none;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface-2);
+}
+.dept-picker-search:focus { background: white; }
+.dept-picker-tree {
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px;
+}
+.dept-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color .12s;
+  font-size: 13px;
+  color: var(--text);
+}
+.dept-picker-row:hover { background: var(--surface-2); }
+.dept-picker-row.selected { background: var(--primary-soft); color: var(--primary); font-weight: 650; }
+.dept-picker-row .dept-picker-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dept-picker-row .dept-picker-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dept-picker-row .dept-picker-add {
+  width: 24px; height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 15px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0;
+  transition: opacity .12s, background-color .12s, color .12s;
+  flex-shrink: 0;
+}
+.dept-picker-row:hover .dept-picker-add,
+.dept-picker-row.selected .dept-picker-add { opacity: 1; }
+.dept-picker-row .dept-picker-add:hover {
+  background: var(--primary);
+  color: white;
+}
+.dept-picker-footer {
+  border-top: 1px solid var(--border);
+  padding: 4px;
+  background: var(--surface-2);
+}
+.dept-picker-add-root {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--primary);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+.dept-picker-add-root:hover { background: var(--primary-soft); }
+.dept-picker-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 12.5px;
+}

@@ -401,7 +401,6 @@ function openDrawer(id) {
 
   setVal('d-name', emp.name);
   setVal('d-role', emp.role);
-  setVal('d-department', emp.department);
   setVal('d-phone', emp.phone);
   setVal('d-email', emp.email);
   setVal('d-birthdate', emp.birthdate);
@@ -421,24 +420,137 @@ function openDrawer(id) {
 }
 
 function populateDeptSelect(emp) {
-  const el = document.getElementById('d-department');
-  const options = ['<option value="">— Engin —</option>'];
+  const hidden = document.getElementById('d-department');
+  hidden.value = emp.department_id || '';
+  const label = document.getElementById('dept-picker-current');
+  if (emp.department_id) {
+    const chain = deptPath(emp.department_id);
+    label.textContent = chain.length ? chain.map(c => c.name).join(' › ') : '— Engin —';
+  } else {
+    label.textContent = '— Engin —';
+  }
+  renderDeptPickerTree(emp.department_id);
+}
+
+function renderDeptPickerTree(selectedId) {
+  const tree = document.getElementById('dept-picker-tree');
+  if (!tree) return;
+  const query = (document.getElementById('dept-picker-search')?.value || '').toLowerCase().trim();
+  const parts = [];
+  parts.push(renderPickerRow(null, '— Engin —', null, selectedId, 0, false));
   const walk = (parentId, depth) => {
     state.departments
       .filter(d => d.parent_id === parentId)
       .sort((a, b) => a.name.localeCompare(b.name, 'is'))
       .forEach(d => {
-        const sel = emp.department_id === d.id ? ' selected' : '';
-        const indent = '  '.repeat(depth * 2);
-        const prefix = depth > 0 ? '↳ ' : '';
-        options.push(`<option value="${d.id}"${sel}>${indent}${prefix}${escapeHtml(d.name)}</option>`);
+        const match = !query || d.name.toLowerCase().includes(query);
+        if (match) parts.push(renderPickerRow(d.id, d.name, d.color, selectedId, depth, true));
         walk(d.id, depth + 1);
       });
   };
   walk(null, 0);
-  options.push('<option value="__new__">+ Ný deild…</option>');
-  el.innerHTML = options.join('');
-  el.value = emp.department_id || '';
+  if (parts.length === 1 && query) {
+    tree.innerHTML = '<div class="dept-picker-empty">Engin deild fannst.</div>';
+  } else {
+    tree.innerHTML = parts.join('');
+  }
+}
+
+function initDeptPicker() {
+  const picker = document.getElementById('dept-picker');
+  const btn = document.getElementById('dept-picker-btn');
+  const popover = document.getElementById('dept-picker-popover');
+  const search = document.getElementById('dept-picker-search');
+  const tree = document.getElementById('dept-picker-tree');
+  const addRoot = document.getElementById('dept-picker-add-root');
+  if (!picker || !btn) return;
+
+  const openPopover = () => {
+    picker.classList.add('open');
+    popover.hidden = false;
+    search.value = '';
+    if (selectedId) renderDeptPickerTree(findEmp(selectedId)?.department_id || null);
+    setTimeout(() => search.focus(), 30);
+  };
+  const closePopover = () => {
+    picker.classList.remove('open');
+    popover.hidden = true;
+  };
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (popover.hidden) openPopover(); else closePopover();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (popover.hidden) return;
+    if (!picker.contains(e.target)) closePopover();
+  });
+
+  search.addEventListener('input', () => {
+    const emp = findEmp(selectedId);
+    renderDeptPickerTree(emp?.department_id || null);
+  });
+
+  tree.addEventListener('click', (e) => {
+    const emp = findEmp(selectedId);
+    if (!emp) return;
+    const addBtn = e.target.closest('[data-action=add-child]');
+    if (addBtn) {
+      e.stopPropagation();
+      const parentId = addBtn.dataset.parent || null;
+      const parent = parentId ? findDept(parentId) : null;
+      const name = prompt(`Nafn undirdeildar${parent ? ' undir "' + parent.name + '"' : ''}:`);
+      if (!name || !name.trim()) return;
+      const dept = createDepartment(name.trim(), null, parentId);
+      emp.department_id = dept.id;
+      populateDeptSelect(emp);
+      renderTree();
+      renderDeptPickerTree(emp.department_id);
+      save();
+      return;
+    }
+    const row = e.target.closest('[data-action=pick]');
+    if (row) {
+      const id = row.dataset.deptId || null;
+      emp.department_id = id;
+      populateDeptSelect(emp);
+      renderTree();
+      save();
+      closePopover();
+    }
+  });
+
+  addRoot.addEventListener('click', () => {
+    const emp = findEmp(selectedId);
+    if (!emp) return;
+    const name = prompt('Nafn nýrrar deildar (efst):');
+    if (!name || !name.trim()) return;
+    const dept = createDepartment(name.trim(), null, null);
+    emp.department_id = dept.id;
+    populateDeptSelect(emp);
+    renderTree();
+    save();
+    closePopover();
+  });
+}
+
+function renderPickerRow(id, name, color, selectedId, depth, addable) {
+  const selected = (id === (selectedId || null)) ? ' selected' : '';
+  const dotHtml = color
+    ? `<span class="dept-picker-dot" style="background:${color}"></span>`
+    : '<span class="dept-picker-dot" style="background:transparent;border:1px dashed var(--border-strong)"></span>';
+  const indentStyle = depth > 0 ? `padding-left: ${10 + depth * 18}px;` : '';
+  const addBtn = addable
+    ? `<button type="button" class="dept-picker-add" data-action="add-child" data-parent="${id}" title="Bæta við undirdeild">+</button>`
+    : '';
+  return `
+    <div class="dept-picker-row${selected}" data-action="pick" data-dept-id="${id ?? ''}" style="${indentStyle}">
+      ${dotHtml}
+      <span class="dept-picker-name">${escapeHtml(name)}</span>
+      ${addBtn}
+    </div>
+  `;
 }
 
 function setVal(id, v) { document.getElementById(id).value = v || ''; }
@@ -684,25 +796,7 @@ function bindDrawerFields() {
     });
   });
 
-  document.getElementById('d-department').addEventListener('change', () => {
-    const emp = findEmp(selectedId);
-    if (!emp) return;
-    const v = getVal('d-department');
-    if (v === '__new__') {
-      const name = prompt('Nafn nýrrar deildar:');
-      if (name && name.trim()) {
-        const dept = createDepartment(name.trim());
-        emp.department_id = dept.id;
-      } else {
-        // Revert
-      }
-      populateDeptSelect(emp);
-    } else {
-      emp.department_id = v || null;
-    }
-    save();
-    renderTree();
-  });
+  initDeptPicker();
 
   bindDateInput('d-birthdate', 'birthdate', (v) => {
     setVal('d-age', ageFromBirthdate(v));

@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=21" />
+<link rel="stylesheet" href="style.css?v=22" />
 </head>
 <body>
   <div class="app">
@@ -142,7 +142,20 @@
       <section class="tab-panel active" data-panel="info">
         <div class="field-grid">
           <label>Deild
-            <select id="d-department"><option value="">— Engin —</option></select>
+            <div class="dept-picker" id="dept-picker">
+              <button type="button" class="dept-picker-btn" id="dept-picker-btn">
+                <span id="dept-picker-current">— Engin —</span>
+                <span class="dept-picker-chevron">▾</span>
+              </button>
+              <div class="dept-picker-popover" id="dept-picker-popover" hidden>
+                <input type="search" class="dept-picker-search" id="dept-picker-search" placeholder="Leita í deildum…" />
+                <div class="dept-picker-tree" id="dept-picker-tree"></div>
+                <div class="dept-picker-footer">
+                  <button type="button" class="dept-picker-add-root" id="dept-picker-add-root">+ Ný deild (efst)</button>
+                </div>
+              </div>
+            </div>
+            <input type="hidden" id="d-department" />
           </label>
           <label class="span-2">Yfirmenn
             <div class="manager-picker" id="d-managers">
@@ -561,6 +574,6 @@
     </main>
   </div>
 
-  <script src="app.js?v=21"></script>
+  <script src="app.js?v=22"></script>
 </body>
 </html>
