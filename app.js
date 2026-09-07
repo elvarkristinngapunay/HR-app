@@ -985,10 +985,25 @@ function renderDeptList() {
 function renderDeptRow(d, depth) {
   const count = state.employees.filter(e => e.department_id === d.id).length;
   const subs = deptChildren(d.id).slice().sort((a, b) => a.name.localeCompare(b.name, 'is'));
+  // Parent options — any dept that isn't this one or a descendant of it
+  const parentOptions = ['<option value="">— Yfirdeild —</option>'];
+  const walk = (parentId, pdepth) => {
+    state.departments
+      .filter(x => x.parent_id === parentId && !isDeptDescendant(x.id, d.id) && x.id !== d.id)
+      .sort((a, b) => a.name.localeCompare(b.name, 'is'))
+      .forEach(x => {
+        const sel = d.parent_id === x.id ? ' selected' : '';
+        const indent = '  '.repeat(pdepth * 2);
+        parentOptions.push(`<option value="${x.id}"${sel}>${indent}${pdepth > 0 ? '↳ ' : ''}${escapeHtml(x.name)}</option>`);
+        walk(x.id, pdepth + 1);
+      });
+  };
+  walk(null, 0);
   return `
     <li class="dept-item" data-dept-id="${d.id}" data-depth="${depth}" style="margin-left:${depth * 24}px">
       <span class="dept-dot" style="background:${d.color}" data-action="recolor" title="Breyta lit"></span>
       <input class="dept-name" value="${escapeHtml(d.name)}" data-action="rename" />
+      <select class="dept-parent" data-action="set-parent" title="Undir hvaða deild">${parentOptions.join('')}</select>
       <span class="dept-count">${count} ${count === 1 ? 'starfsmaður' : 'starfsmenn'}</span>
       <div class="dept-actions">
         <button class="icon-btn" data-action="add-sub" title="Bæta við undirdeild">+</button>
@@ -1128,13 +1143,29 @@ function init() {
     }
   });
   deptList.addEventListener('change', (e) => {
-    const input = e.target.closest('[data-action=rename]');
-    if (!input) return;
-    const item = input.closest('[data-dept-id]');
-    renameDepartment(item.dataset.deptId, input.value);
-    renderDeptList();
-    renderTree();
-    if (selectedId) populateDeptSelect(findEmp(selectedId));
+    const item = e.target.closest('[data-dept-id]');
+    if (!item) return;
+    const id = item.dataset.deptId;
+    if (e.target.classList.contains('dept-name')) {
+      renameDepartment(id, e.target.value);
+      renderDeptList();
+      renderTree();
+      if (selectedId) populateDeptSelect(findEmp(selectedId));
+    } else if (e.target.classList.contains('dept-parent')) {
+      const newParent = e.target.value || null;
+      const d = findDept(id);
+      if (!d) return;
+      if (newParent && isDeptDescendant(newParent, id)) {
+        alert('Er ekki hægt: sú deild er undirdeild þessarar.');
+        renderDeptList();
+        return;
+      }
+      d.parent_id = newParent;
+      save();
+      renderDeptList();
+      renderTree();
+      if (selectedId) populateDeptSelect(findEmp(selectedId));
+    }
   });
 
   bindDrawerFields();
