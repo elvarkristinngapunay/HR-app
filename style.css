@@ -3246,3 +3246,16 @@ body { display: flex; flex-direction: column; }
   font-size: 12.5px;
   font-weight: 400;
 }
+
+/* Icon-only chips in the people view toggle */
+#people-view-toggle .chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  min-width: 44px;
+  color: var(--text-3);
+}
+#people-view-toggle .chip:hover { color: var(--text); }
+#people-view-toggle .chip.active { color: var(--primary); }
+#people-view-toggle .chip svg { display: block; }
