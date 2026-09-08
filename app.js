@@ -1446,9 +1446,18 @@ function init() {
   });
 
   editorItems.addEventListener('click', (e) => {
+    const li = e.target.closest('[data-item-id]');
+    if (!li) return;
+    const item = editingChecklistDraft.items.find(i => i.id === li.dataset.itemId);
+    if (!item) return;
     if (e.target.closest('[data-action=delete]')) {
-      const li = e.target.closest('[data-item-id]');
       editingChecklistDraft.items = editingChecklistDraft.items.filter(i => i.id !== li.dataset.itemId);
+      renderChecklistEditorItems();
+    } else if (e.target.closest('[data-action=indent]')) {
+      item.indent = Math.min(3, (item.indent || 0) + 1);
+      renderChecklistEditorItems();
+    } else if (e.target.closest('[data-action=outdent]')) {
+      item.indent = Math.max(0, (item.indent || 0) - 1);
       renderChecklistEditorItems();
     }
   });
@@ -1766,8 +1775,12 @@ function renderChecklistEditorItems() {
     return `
       <li class="checklist-editor-item indent-${level}" data-item-id="${i.id}">
         <span class="checklist-editor-bullet bullet-${level}" aria-hidden="true"></span>
-        <input value="${escapeHtml(i.title)}" data-action="rename" placeholder="Nafn atriðis (Tab til að draga inn)" />
-        <button type="button" data-action="delete" title="Eyða">✕</button>
+        <input value="${escapeHtml(i.title)}" data-action="rename" placeholder="Nafn atriðis" />
+        <div class="checklist-editor-actions">
+          <button type="button" data-action="outdent" title="Færa vinstri (Shift+Tab)" ${level === 0 ? 'disabled' : ''}>←</button>
+          <button type="button" data-action="indent" title="Færa hægri — gera undirlið (Tab)" ${level >= 3 ? 'disabled' : ''}>→</button>
+          <button type="button" data-action="delete" title="Eyða">✕</button>
+        </div>
       </li>
     `;
   }).join('');

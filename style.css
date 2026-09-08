@@ -3542,13 +3542,28 @@ body { display: flex; flex-direction: column; }
 }
 .checklist-editor-item input:hover { border-color: var(--border); background: white; }
 .checklist-editor-item input:focus { border-color: var(--primary); background: white; box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
-.checklist-editor-item button {
-  background: none; border: none; color: var(--text-3);
-  cursor: pointer; padding: 6px 8px; border-radius: 6px; font-size: 14px;
-  opacity: 0; transition: opacity .12s;
+.checklist-editor-actions {
+  display: inline-flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity .12s;
 }
-.checklist-editor-item:hover button { opacity: 1; }
-.checklist-editor-item button:hover { color: var(--danger); background: var(--danger-soft); }
+.checklist-editor-item:hover .checklist-editor-actions { opacity: 1; }
+.checklist-editor-item .checklist-editor-actions button {
+  background: none; border: 1px solid transparent; color: var(--text-3);
+  cursor: pointer; padding: 4px 8px; border-radius: 6px; font-size: 13px;
+  font-family: inherit;
+  min-width: 26px;
+}
+.checklist-editor-item .checklist-editor-actions button:hover {
+  color: var(--primary); background: var(--primary-soft);
+}
+.checklist-editor-item .checklist-editor-actions button[data-action=delete]:hover {
+  color: var(--danger); background: var(--danger-soft);
+}
+.checklist-editor-item .checklist-editor-actions button:disabled {
+  opacity: 0.3; cursor: not-allowed;
+}
 
 .checklist-add-item-row {
   display: flex; align-items: center; gap: 10px;
