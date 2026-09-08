@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=38" />
+<link rel="stylesheet" href="style.css?v=39" />
 </head>
 <body>
   <button type="button" class="sidebar-toggle" id="sidebar-toggle" title="Fela / sýna hliðardálk">
@@ -25,6 +25,10 @@
       </div>
 
       <nav class="sidebar-nav" id="section-nav">
+        <button class="sidebar-item active" data-section="today">
+          <span class="sidebar-icon">🏠</span>
+          <span>Í dag</span>
+        </button>
         <button class="sidebar-item active" data-section="people">
           <span class="sidebar-icon">👥</span>
           <span>Allir</span>
@@ -45,6 +49,20 @@
     </aside>
 
     <div class="main-column">
+      <!-- Today section (home dashboard) -->
+      <section class="section" id="section-today" hidden>
+        <header class="section-header">
+          <div>
+            <h2>Í dag</h2>
+            <p class="subtle" id="today-date">—</p>
+          </div>
+          <div class="section-actions">
+            <button class="chip" id="today-refresh" title="Uppfæra">↻</button>
+          </div>
+        </header>
+        <main class="today-main" id="today-main"></main>
+      </section>
+
       <!-- People section -->
       <section class="section" id="section-people">
         <header class="section-header">
@@ -750,6 +768,6 @@
     </main>
   </div>
 
-  <script src="app.js?v=36"></script>
+  <script src="app.js?v=37"></script>
 </body>
 </html>

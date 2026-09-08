@@ -1395,6 +1395,10 @@ function init() {
 
   // Training section wiring
   document.getElementById('training-search').addEventListener('input', renderTraining);
+
+  // Í dag refresh button
+  const todayRefresh = document.getElementById('today-refresh');
+  if (todayRefresh) todayRefresh.addEventListener('click', renderToday);
   const newCLBtn = document.getElementById('new-checklist-btn');
   if (newCLBtn) newCLBtn.addEventListener('click', () => openChecklistEditor(null));
 
@@ -1563,7 +1567,7 @@ function initSections() {
     if (!btn) return;
     switchSection(btn.dataset.section);
   });
-  const saved = localStorage.getItem(SECTION_KEY) || 'people';
+  const saved = localStorage.getItem(SECTION_KEY) || 'today';
   switchSection(saved);
 }
 function switchSection(name) {
@@ -1586,7 +1590,253 @@ function switchSection(name) {
   if (name === 'events') renderEvents();
   if (name === 'scratch') renderScratch();
   if (name === 'training') renderTraining();
+  if (name === 'today') renderToday();
 }
+
+// ---------- Í dag (home dashboard) ----------
+function renderToday() {
+  const now = new Date();
+  const todayIso = now.toISOString().slice(0, 10);
+  const dayLabel = `${cap(WEEKDAYS_IS[now.getDay()])}, ${now.getDate()}. ${MONTHS_IS_LONG[now.getMonth()]} ${now.getFullYear()}`;
+  document.getElementById('today-date').textContent = dayLabel;
+
+  const wrap = document.getElementById('today-main');
+  const blocks = [];
+
+  // 1. Afmæli í dag
+  const birthdays = state.employees.filter(e => {
+    const bd = parseFlexibleDate(e.birthdate);
+    if (!bd) return false;
+    return bd.getDate() === now.getDate() && bd.getMonth() === now.getMonth();
+  });
+  if (birthdays.length) {
+    blocks.push(todayBlock('🎂', 'Afmæli í dag', birthdays.length, false, birthdays.map(e => {
+      const bd = parseFlexibleDate(e.birthdate);
+      const age = now.getFullYear() - bd.getFullYear() - (
+        now.getMonth() < bd.getMonth() || (now.getMonth() === bd.getMonth() && now.getDate() < bd.getDate()) ? 1 : 0
+      );
+      const dept = findDept(e.department_id);
+      const color = dept?.color || e.avatar_color;
+      return `
+        <li class="today-item" data-nav="drawer" data-emp-id="${e.id}">
+          <span class="today-item-time no-time">🎉</span>
+          <span class="today-item-avatar" style="background:${color}">${initials(e.name)}</span>
+          <span class="today-item-title">${escapeHtml(e.name)}</span>
+          <span class="today-item-meta">${age} ára</span>
+        </li>
+      `;
+    }).join('')));
+  }
+
+  // 2. Viðburðir í dag
+  const eventsToday = (state.events || []).filter(ev => ev.date_iso === todayIso)
+    .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+  if (eventsToday.length) {
+    blocks.push(todayBlock('📅', 'Viðburðir í dag', eventsToday.length, false,
+      eventsToday.map(ev => `
+        <li class="today-item" data-nav="event" data-event-id="${ev.id}">
+          <span class="today-item-time ${ev.time && ev.time < now.toTimeString().slice(0, 5) ? 'past' : ''}">${ev.time || '—'}</span>
+          <span class="today-item-title">${escapeHtml(ev.title)}</span>
+          <span class="today-item-meta">${ev.location ? '📍 ' + escapeHtml(ev.location) : ''}</span>
+        </li>
+      `).join('')));
+  }
+
+  // 3. Verkefni sem eiga að vera búin (from event tasks + party items pickup today or overdue)
+  const eventTasksDue = [];
+  (state.events || []).forEach(ev => {
+    (ev.tasks || []).forEach(t => {
+      if (t.done) return;
+      if (!t.due_date) return;
+      const due = parseFlexibleDate(t.due_date);
+      if (!due) return;
+      const dueIso = due.toISOString().slice(0, 10);
+      if (dueIso <= todayIso) {
+        eventTasksDue.push({ ev, task: t, dueIso });
+      }
+    });
+  });
+  if (eventTasksDue.length) {
+    eventTasksDue.sort((a, b) => a.dueIso.localeCompare(b.dueIso));
+    blocks.push(todayBlock('✅', 'Verkefni sem eiga að vera búin', eventTasksDue.length, true,
+      eventTasksDue.map(x => {
+        const overdue = x.dueIso < todayIso;
+        const assignee = x.task.assignee_id ? findEmp(x.task.assignee_id) : null;
+        return `
+          <li class="today-item" data-nav="event" data-event-id="${x.ev.id}">
+            <span class="today-item-time ${overdue ? 'past' : ''}">${x.dueIso === todayIso ? 'í dag' : x.task.due_date}</span>
+            <span class="today-item-title">${escapeHtml(x.task.title)}</span>
+            <span class="today-item-meta">${escapeHtml(x.ev.title)}${assignee ? ' · ' + escapeHtml(assignee.name.split(' ')[0]) : ''}</span>
+            ${overdue ? '<span class="today-item-badge overdue">yfir</span>' : ''}
+          </li>
+        `;
+      }).join('')));
+  }
+
+  // 4. Þarf að sækja / afhent í dag (party items)
+  const itemsToday = [];
+  (state.events || []).forEach(ev => {
+    const walkCats = (cats) => {
+      cats.forEach(c => {
+        c.items.forEach(i => {
+          if (i.done) return;
+          if (!i.pickup_date) return;
+          const d = parseFlexibleDate(i.pickup_date);
+          if (!d) return;
+          const iso = d.toISOString().slice(0, 10);
+          if (iso === todayIso) itemsToday.push({ ev, item: i });
+        });
+        walkCats(c.subcategories || []);
+      });
+    };
+    walkCats(ev.budget_categories || []);
+  });
+  if (itemsToday.length) {
+    itemsToday.sort((a, b) => (a.item.pickup_time || '').localeCompare(b.item.pickup_time || ''));
+    blocks.push(todayBlock('🛒', 'Þarf að sækja / afhent í dag', itemsToday.length, false,
+      itemsToday.map(x => `
+        <li class="today-item" data-nav="event" data-event-id="${x.ev.id}">
+          <span class="today-item-time ${x.item.pickup_time || 'no-time'}">${x.item.pickup_time || '—'}</span>
+          <span class="today-item-title">${escapeHtml(x.item.name)}</span>
+          <span class="today-item-meta">${x.item.pickup_type === 'pickup' ? '🛒 Ná í' : '🚚 Til mín'}${x.item.pickup_location ? ' · ' + escapeHtml(x.item.pickup_location) : ''} · ${escapeHtml(x.ev.title)}</span>
+        </li>
+      `).join('')));
+  }
+
+  // 5. Dagskrár-atriði (timeline) í dag
+  const scheduleToday = [];
+  (state.events || []).forEach(ev => {
+    (ev.timeline_items || []).forEach(t => {
+      const d = parseFlexibleDate(t.date);
+      if (!d) return;
+      if (d.toISOString().slice(0, 10) === todayIso) {
+        scheduleToday.push({ ev, item: t });
+      }
+    });
+  });
+  if (scheduleToday.length) {
+    scheduleToday.sort((a, b) => (a.item.time || '').localeCompare(b.item.time || ''));
+    blocks.push(todayBlock('🕐', 'Dagskrá í dag', scheduleToday.length, false,
+      scheduleToday.map(x => `
+        <li class="today-item" data-nav="event" data-event-id="${x.ev.id}">
+          <span class="today-item-time">${x.item.time || '—'}</span>
+          <span class="today-item-title ${x.item.done ? 'done' : ''}">${escapeHtml(x.item.title)}</span>
+          <span class="today-item-meta">${escapeHtml(x.ev.title)}</span>
+        </li>
+      `).join('')));
+  }
+
+  // 6. Áminningar úr Skjal
+  const reminders = [];
+  (state.scratchNotes || []).forEach(sn => {
+    if (sn.event_at) {
+      const d = new Date(sn.event_at);
+      if (d.toISOString().slice(0, 10) === todayIso) reminders.push({ sn, kind: 'event' });
+    }
+    if (sn.remind_at) {
+      const d = new Date(sn.remind_at);
+      if (d.toISOString().slice(0, 10) === todayIso) reminders.push({ sn, kind: 'remind' });
+    }
+  });
+  if (reminders.length) {
+    blocks.push(todayBlock('🔔', 'Áminningar í dag', reminders.length, false,
+      reminders.map(x => {
+        const at = new Date(x.kind === 'event' ? x.sn.event_at : x.sn.remind_at);
+        const time = `${String(at.getHours()).padStart(2,'0')}:${String(at.getMinutes()).padStart(2,'0')}`;
+        return `
+          <li class="today-item" data-nav="scratch" data-scratch-id="${x.sn.id}">
+            <span class="today-item-time">${time}</span>
+            <span class="today-item-title">${escapeHtml(x.sn.title || x.sn.body.slice(0, 60))}</span>
+            <span class="today-item-meta">${x.kind === 'event' ? 'Skjal · dagsetning' : 'Skjal · minna á'}</span>
+          </li>
+        `;
+      }).join('')));
+  }
+
+  // 7. Þjálfun með fresti í dag eða yfir tíma
+  const trainingDue = [];
+  state.employees.forEach(e => {
+    (e.training || []).forEach(a => {
+      if (!a.deadline) return;
+      const d = parseFlexibleDate(a.deadline);
+      if (!d) return;
+      const iso = d.toISOString().slice(0, 10);
+      if (iso > todayIso) return;
+      const p = trainingProgress(a);
+      if (p.total && p.done === p.total) return;
+      trainingDue.push({ emp: e, a, iso });
+    });
+  });
+  if (trainingDue.length) {
+    trainingDue.sort((a, b) => a.iso.localeCompare(b.iso));
+    blocks.push(todayBlock('🎓', 'Þjálfun með fresti', trainingDue.length, true,
+      trainingDue.map(x => {
+        const cl = findChecklist(x.a.checklist_id);
+        const p = trainingProgress(x.a);
+        const overdue = x.iso < todayIso;
+        const dept = findDept(x.emp.department_id);
+        const color = dept?.color || x.emp.avatar_color;
+        return `
+          <li class="today-item" data-nav="training" data-emp-id="${x.emp.id}" data-assignment-id="${x.a.id}">
+            <span class="today-item-time ${overdue ? 'past' : ''}">${x.a.deadline}</span>
+            <span class="today-item-avatar" style="background:${color}">${initials(x.emp.name)}</span>
+            <span class="today-item-title">${escapeHtml(x.emp.name)}</span>
+            <span class="today-item-meta">${escapeHtml(cl?.name || 'Þjálfun')} · ${p.done}/${p.total}</span>
+            ${overdue ? '<span class="today-item-badge overdue">yfir</span>' : ''}
+          </li>
+        `;
+      }).join('')));
+  }
+
+  if (!blocks.length) {
+    wrap.innerHTML = `
+      <div class="today-wrap">
+        <div class="today-empty">
+          <div class="icon">☕</div>
+          <h3>Ekkert á dagskrá í dag</h3>
+          <p>Njóttu dagsins — engir viðburðir, verkefni eða áminningar.</p>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  wrap.innerHTML = `<div class="today-wrap">${blocks.join('')}</div>`;
+
+  // Wire click navigation
+  wrap.querySelectorAll('[data-nav]').forEach(el => {
+    el.addEventListener('click', () => {
+      const nav = el.dataset.nav;
+      if (nav === 'drawer') { openDrawer(el.dataset.empId); }
+      else if (nav === 'event') {
+        switchSection('events');
+        setTimeout(() => openEventModal(el.dataset.eventId), 60);
+      }
+      else if (nav === 'scratch') {
+        switchSection('scratch');
+        setTimeout(() => openScratchModal(el.dataset.scratchId), 60);
+      }
+      else if (nav === 'training') {
+        switchSection('training');
+        setTimeout(() => openTrainingDetail(el.dataset.empId, el.dataset.assignmentId), 60);
+      }
+    });
+  });
+}
+
+function todayBlock(icon, title, count, warn, itemsHtml) {
+  return `
+    <div class="today-block">
+      <div class="today-block-head">
+        <h3><span class="icon">${icon}</span> ${escapeHtml(title)}</h3>
+        <span class="today-block-count ${warn ? 'count-warn' : ''}">${count}</span>
+      </div>
+      <ul class="today-list">${itemsHtml}</ul>
+    </div>
+  `;
+}
+
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
 // ---------- Training — checklists + per-employee assignments ----------
 function findChecklist(id) { return (state.checklists || []).find(c => c.id === id); }
