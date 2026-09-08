@@ -1410,9 +1410,17 @@ function init() {
     const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     if (!lines.length) return false;
     lines.forEach(line => {
+      // Detect leading whitespace/dashes to guess indent
+      let indent = 0;
+      const leading = line.match(/^([ \t]+|[\s]*[-•·]+\s*)/);
+      if (leading) {
+        const spaces = (leading[0].match(/\t|  /g) || []).length;
+        indent = Math.min(3, spaces);
+      }
       editingChecklistDraft.items.push({
         id: 'ci_' + Math.random().toString(36).slice(2, 10),
-        title: line,
+        title: line.replace(/^[\s\-•·]+/, '').trim(),
+        indent,
       });
     });
     newItemInput.value = '';
@@ -1449,6 +1457,41 @@ function init() {
       const li = e.target.closest('[data-item-id]');
       const item = editingChecklistDraft.items.find(i => i.id === li.dataset.itemId);
       if (item) item.title = e.target.value;
+    }
+  });
+  editorItems.addEventListener('keydown', (e) => {
+    if (!e.target.matches('[data-action=rename]')) return;
+    const li = e.target.closest('[data-item-id]');
+    const item = editingChecklistDraft.items.find(i => i.id === li.dataset.itemId);
+    if (!item) return;
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const delta = e.shiftKey ? -1 : 1;
+      item.indent = Math.max(0, Math.min(3, (item.indent || 0) + delta));
+      renderChecklistEditorItems();
+      // Restore focus
+      const still = document.querySelector(`[data-item-id="${item.id}"] input`);
+      still?.focus();
+      still?.setSelectionRange(item.title.length, item.title.length);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const idx = editingChecklistDraft.items.findIndex(i => i.id === item.id);
+      const newItem = { id: 'ci_' + Math.random().toString(36).slice(2, 10), title: '', indent: item.indent || 0 };
+      editingChecklistDraft.items.splice(idx + 1, 0, newItem);
+      renderChecklistEditorItems();
+      const next = document.querySelector(`[data-item-id="${newItem.id}"] input`);
+      next?.focus();
+    } else if (e.key === 'Backspace' && e.target.value === '' && editingChecklistDraft.items.length > 1) {
+      e.preventDefault();
+      const idx = editingChecklistDraft.items.findIndex(i => i.id === item.id);
+      editingChecklistDraft.items.splice(idx, 1);
+      renderChecklistEditorItems();
+      const prev = editingChecklistDraft.items[Math.max(0, idx - 1)];
+      if (prev) {
+        const el2 = document.querySelector(`[data-item-id="${prev.id}"] input`);
+        el2?.focus();
+        el2?.setSelectionRange(prev.title.length, prev.title.length);
+      }
     }
   });
 
@@ -1659,12 +1702,18 @@ function renderChecklistsGrid() {
   const lists = state.checklists || [];
   const cards = lists.map(cl => {
     const usedBy = state.employees.reduce((s, e) => s + ((e.training || []).some(a => a.checklist_id === cl.id) ? 1 : 0), 0);
+    const preview = cl.items.slice(0, 6).map(i => {
+      const level = Math.max(0, Math.min(3, i.indent || 0));
+      return `<li class="preview-item indent-${level}"><span class="preview-bullet bullet-${level}"></span>${escapeHtml(i.title)}</li>`;
+    }).join('');
+    const more = cl.items.length > 6 ? `<li class="preview-more">…og ${cl.items.length - 6} til viðbótar</li>` : '';
     return `
       <div class="checklist-card" data-checklist-id="${cl.id}">
         <div class="checklist-card-head">
           <div class="checklist-card-name">${escapeHtml(cl.name)}</div>
         </div>
         <div class="checklist-card-meta">${cl.items.length} atriði · ${usedBy} ${usedBy === 1 ? 'starfsmaður' : 'starfsmenn'}</div>
+        <ul class="checklist-card-preview">${preview}${more}</ul>
         <div class="checklist-card-actions">
           <button type="button" class="btn" data-action="view">Skoða</button>
           <button type="button" class="btn primary" data-action="assign">+ Starfsmaður</button>
@@ -1712,14 +1761,16 @@ function openChecklistEditor(id) {
 
 function renderChecklistEditorItems() {
   const el = document.getElementById('checklist-editor-items');
-  el.innerHTML = editingChecklistDraft.items.map((i, idx) => `
-    <li class="checklist-editor-item" data-item-id="${i.id}">
-      <span class="checklist-editor-check" aria-hidden="true"></span>
-      <span class="checklist-editor-index">${idx + 1}.</span>
-      <input value="${escapeHtml(i.title)}" data-action="rename" placeholder="Nafn atriðis" />
-      <button type="button" data-action="delete" title="Eyða">✕</button>
-    </li>
-  `).join('');
+  el.innerHTML = editingChecklistDraft.items.map(i => {
+    const level = Math.max(0, Math.min(3, i.indent || 0));
+    return `
+      <li class="checklist-editor-item indent-${level}" data-item-id="${i.id}">
+        <span class="checklist-editor-bullet bullet-${level}" aria-hidden="true"></span>
+        <input value="${escapeHtml(i.title)}" data-action="rename" placeholder="Nafn atriðis (Tab til að draga inn)" />
+        <button type="button" data-action="delete" title="Eyða">✕</button>
+      </li>
+    `;
+  }).join('');
   updateChecklistItemCount();
 }
 
@@ -1837,12 +1888,15 @@ function renderTrainingDetail() {
   document.getElementById('training-detail-progress').textContent = `${p.done} af ${p.total}`;
   const doneSet = new Set(a.done_items || []);
   const list = document.getElementById('training-detail-items');
-  list.innerHTML = cl.items.map(i => `
-    <li class="${doneSet.has(i.id) ? 'done' : ''}" data-item-id="${i.id}">
-      <span class="check"></span>
-      <span class="title">${escapeHtml(i.title)}</span>
-    </li>
-  `).join('');
+  list.innerHTML = cl.items.map(i => {
+    const level = Math.max(0, Math.min(3, i.indent || 0));
+    return `
+      <li class="indent-${level} ${doneSet.has(i.id) ? 'done' : ''}" data-item-id="${i.id}">
+        <span class="check"></span>
+        <span class="title">${escapeHtml(i.title)}</span>
+      </li>
+    `;
+  }).join('');
   list.querySelectorAll('[data-item-id]').forEach(li => {
     li.addEventListener('click', () => {
       const itemId = li.dataset.itemId;

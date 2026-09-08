@@ -3506,24 +3506,28 @@ body { display: flex; flex-direction: column; }
   transition: background-color .12s;
 }
 .checklist-editor-item:hover { background: var(--surface-2); }
-.checklist-editor-check {
+.checklist-editor-bullet {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--text);
+  flex-shrink: 0;
+  margin: 0 4px;
+}
+.checklist-editor-bullet.bullet-1 { background: transparent; border: 1.5px solid var(--text-2); width: 7px; height: 7px; }
+.checklist-editor-bullet.bullet-2 { background: var(--text-2); width: 6px; height: 6px; border-radius: 2px; }
+.checklist-editor-bullet.bullet-3 { background: transparent; border: 1.5px solid var(--text-3); width: 6px; height: 6px; border-radius: 2px; }
+
+.checklist-editor-item.indent-1 { padding-left: 32px; }
+.checklist-editor-item.indent-2 { padding-left: 60px; }
+.checklist-editor-item.indent-3 { padding-left: 88px; }
+
+.checklist-editor-check-add {
   width: 20px; height: 20px;
-  border: 1.5px solid var(--border-strong);
+  border: 1.5px dashed var(--primary);
   border-radius: 50%;
   background: white;
   flex-shrink: 0;
-}
-.checklist-editor-check-add {
-  border-style: dashed;
-  border-color: var(--primary);
   opacity: 0.5;
-}
-.checklist-editor-index {
-  color: var(--text-3);
-  font-size: 12px;
-  font-weight: 600;
-  min-width: 22px;
-  text-align: right;
 }
 .checklist-editor-item input {
   flex: 1;
@@ -3738,3 +3742,48 @@ body { display: flex; flex-direction: column; }
   background: var(--primary-soft);
   border-style: solid;
 }
+
+/* ============== Checklist card preview + training detail indents ============== */
+.checklist-card-preview {
+  list-style: none;
+  padding: 10px 0 4px;
+  margin: 0;
+  border-top: 1px dashed var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.checklist-card-preview .preview-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.checklist-card-preview .preview-bullet {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--text-2);
+  flex-shrink: 0;
+}
+.checklist-card-preview .preview-bullet.bullet-1 { background: transparent; border: 1.5px solid var(--text-3); width: 5px; height: 5px; }
+.checklist-card-preview .preview-bullet.bullet-2 { background: var(--text-3); border-radius: 1px; }
+.checklist-card-preview .preview-bullet.bullet-3 { background: transparent; border: 1.5px solid var(--text-3); border-radius: 1px; }
+.checklist-card-preview .preview-item.indent-1 { padding-left: 14px; }
+.checklist-card-preview .preview-item.indent-2 { padding-left: 28px; }
+.checklist-card-preview .preview-item.indent-3 { padding-left: 42px; }
+.checklist-card-preview .preview-more {
+  font-size: 11.5px;
+  color: var(--text-3);
+  font-style: italic;
+  padding-top: 4px;
+}
+
+/* Training detail items indents */
+.training-detail-items li.indent-1 { padding-left: 42px; }
+.training-detail-items li.indent-2 { padding-left: 74px; }
+.training-detail-items li.indent-3 { padding-left: 106px; }
