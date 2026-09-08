@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=33" />
+<link rel="stylesheet" href="style.css?v=34" />
 </head>
 <body>
   <button type="button" class="sidebar-toggle" id="sidebar-toggle" title="Fela / sýna hliðardálk">
@@ -139,25 +139,29 @@
           </div>
           <div class="section-actions">
             <input type="search" id="training-search" placeholder="Leita eftir starfsmanni eða þjálfun…" />
-            <button class="btn" id="training-library-btn">🎓 Þjálfunar-safn</button>
-            <button class="btn primary" id="training-assign-btn">+ Úthluta þjálfun</button>
           </div>
         </header>
 
         <main class="training-main">
-          <div class="training-summary" id="training-summary" hidden>
-            <div class="stat-tile"><div class="stat-num" id="training-in-progress">0</div><div class="stat-label">Í vinnslu</div></div>
-            <div class="stat-tile stat-yes"><div class="stat-num" id="training-completed">0</div><div class="stat-label">Lokið</div></div>
-            <div class="stat-tile stat-maybe"><div class="stat-num" id="training-overdue">0</div><div class="stat-label">Yfir tíma</div></div>
+          <div class="training-subsection">
+            <div class="training-subsection-head">
+              <h3>Tékklistar</h3>
+              <p class="field-hint">Byggðu upp þjálfun sem má senda á starfsfólk aftur og aftur.</p>
+            </div>
+            <div class="checklists-grid" id="checklists-grid"></div>
           </div>
 
-          <ul class="training-list" id="training-list"></ul>
-
-          <div class="empty-state" id="training-empty" hidden>
-            <div class="empty-icon">🎓</div>
-            <h2>Engin þjálfun ennþá</h2>
-            <p>Búðu til þjálfunar-módúl í safninu og úthlutaðu því á starfsfólk.</p>
-            <button class="btn primary" id="training-empty-add-btn">🎓 Opna þjálfunar-safn</button>
+          <div class="training-subsection">
+            <div class="training-subsection-head">
+              <h3>Starfsfólk í þjálfun</h3>
+              <p class="field-hint" id="training-summary-inline">Enginn í þjálfun ennþá.</p>
+            </div>
+            <div class="training-summary" id="training-summary" hidden>
+              <div class="stat-tile"><div class="stat-num" id="training-in-progress">0</div><div class="stat-label">Í vinnslu</div></div>
+              <div class="stat-tile stat-yes"><div class="stat-num" id="training-completed">0</div><div class="stat-label">Lokið</div></div>
+              <div class="stat-tile stat-maybe"><div class="stat-num" id="training-overdue">0</div><div class="stat-label">Yfir tíma</div></div>
+            </div>
+            <ul class="training-list" id="training-list"></ul>
           </div>
         </main>
       </section>
@@ -761,6 +765,6 @@
     </main>
   </div>
 
-  <script src="app.js?v=31"></script>
+  <script src="app.js?v=32"></script>
 </body>
 </html>

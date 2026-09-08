@@ -3594,3 +3594,98 @@ body { display: flex; flex-direction: column; }
 .training-detail-items .title {
   flex: 1; font-size: 14px; color: var(--text); font-weight: 500;
 }
+
+/* ============== Þjálfun inline layout ============== */
+.training-subsection {
+  max-width: 1100px;
+  margin: 0 auto 32px;
+}
+.training-subsection-head {
+  display: flex; align-items: baseline; gap: 12px;
+  margin-bottom: 12px;
+}
+.training-subsection-head h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.3px;
+}
+.training-subsection-head .field-hint {
+  margin: 0;
+}
+.checklists-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+.checklist-card {
+  background: white;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  transition: box-shadow .18s, transform .18s, border-color .18s;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.checklist-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: rgba(79, 70, 229, 0.35);
+}
+.checklist-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.checklist-card-name {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
+  letter-spacing: -0.2px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.checklist-card-meta {
+  font-size: 12px;
+  color: var(--text-3);
+  font-weight: 600;
+}
+.checklist-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.checklist-card-actions .btn {
+  flex: 1;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+.checklist-add-card {
+  background: transparent;
+  border: 2px dashed var(--border-strong);
+  border-radius: 14px;
+  padding: 24px 16px;
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color .12s, background-color .12s, color .12s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100px;
+}
+.checklist-add-card:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-style: solid;
+}

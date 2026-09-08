@@ -1394,11 +1394,9 @@ function init() {
   switchPeopleView(peopleView);
 
   // Training section wiring
-  document.getElementById('training-library-btn').addEventListener('click', openChecklistLibrary);
-  document.getElementById('training-empty-add-btn').addEventListener('click', openChecklistLibrary);
-  document.getElementById('training-assign-btn').addEventListener('click', openAssignTraining);
   document.getElementById('training-search').addEventListener('input', renderTraining);
-  document.getElementById('new-checklist-btn').addEventListener('click', () => openChecklistEditor(null));
+  const newCLBtn = document.getElementById('new-checklist-btn');
+  if (newCLBtn) newCLBtn.addEventListener('click', () => openChecklistEditor(null));
 
   // Checklist editor
   const editorForm = document.getElementById('checklist-editor-form');
@@ -1539,9 +1537,10 @@ function isAssignmentOverdue(a) {
 }
 
 function renderTraining() {
+  renderChecklistsGrid();
   const list = document.getElementById('training-list');
-  const empty = document.getElementById('training-empty');
   const summary = document.getElementById('training-summary');
+  const inlineSummary = document.getElementById('training-summary-inline');
   const q = (document.getElementById('training-search').value || '').toLowerCase().trim();
 
   // Employees with any assignment
@@ -1570,16 +1569,16 @@ function renderTraining() {
   if (!trainees.length) {
     list.innerHTML = '';
     summary.hidden = true;
-    empty.hidden = true;
-    // If no assignments at all show the "start" empty state; otherwise no matches
     if (state.employees.every(e => !(e.training || []).length)) {
-      empty.hidden = false;
+      inlineSummary.textContent = state.checklists.length
+        ? 'Enginn í þjálfun ennþá. Smelltu „Senda á starfsmann" á tékklista til að úthluta.'
+        : 'Búðu til fyrsta tékklistann fyrir ofan.';
     } else {
-      list.innerHTML = '<li class="dept-empty" style="text-align:center;padding:24px;">Engin þjálfun samsvarar leitinni.</li>';
+      inlineSummary.textContent = 'Engin þjálfun samsvarar leitinni.';
     }
     return;
   }
-  empty.hidden = true;
+  inlineSummary.textContent = '';
   summary.hidden = false;
 
   list.innerHTML = trainees.map(e => {
@@ -1632,7 +1631,45 @@ function renderTraining() {
   });
 }
 
-// ---------- Checklist library ----------
+// ---------- Checklist grid (inline in Þjálfun) ----------
+function renderChecklistsGrid() {
+  const grid = document.getElementById('checklists-grid');
+  if (!grid) return;
+  const lists = state.checklists || [];
+  const cards = lists.map(cl => {
+    const usedBy = state.employees.reduce((s, e) => s + ((e.training || []).some(a => a.checklist_id === cl.id) ? 1 : 0), 0);
+    return `
+      <div class="checklist-card" data-checklist-id="${cl.id}">
+        <div class="checklist-card-head">
+          <div class="checklist-card-name">${escapeHtml(cl.name)}</div>
+        </div>
+        <div class="checklist-card-meta">${cl.items.length} atriði · ${usedBy} ${usedBy === 1 ? 'starfsmaður' : 'starfsmenn'}</div>
+        <div class="checklist-card-actions">
+          <button type="button" class="btn" data-action="view">Skoða</button>
+          <button type="button" class="btn primary" data-action="assign">+ Starfsmaður</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+  grid.innerHTML = cards + `<button type="button" class="checklist-add-card" data-action="new-checklist">+ Nýr tékklisti</button>`;
+
+  grid.querySelectorAll('[data-action=new-checklist]').forEach(b => {
+    b.addEventListener('click', () => openChecklistEditor(null));
+  });
+  grid.querySelectorAll('[data-checklist-id]').forEach(card => {
+    const id = card.dataset.checklistId;
+    card.querySelector('[data-action=view]').addEventListener('click', (e) => {
+      e.stopPropagation();
+      openChecklistEditor(id);
+    });
+    card.querySelector('[data-action=assign]').addEventListener('click', (e) => {
+      e.stopPropagation();
+      openAssignTraining(id);
+    });
+  });
+}
+
+// ---------- Checklist library (legacy modal — still available but not required) ----------
 function openChecklistLibrary() {
   document.getElementById('training-library-modal').hidden = false;
   renderChecklistLibrary();
@@ -1732,16 +1769,15 @@ function deleteChecklist(id) {
 }
 
 // ---------- Assign training ----------
-function openAssignTraining() {
+function openAssignTraining(preselectChecklistId) {
   const clSel = document.getElementById('assign-checklist-select');
   const empSel = document.getElementById('assign-employee-select');
   const lists = state.checklists || [];
   if (!lists.length) {
-    alert('Búðu til tékklista fyrst í Þjálfunar-safninu.');
-    openChecklistLibrary();
+    alert('Búðu til tékklista fyrst.');
     return;
   }
-  clSel.innerHTML = lists.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  clSel.innerHTML = lists.map(c => `<option value="${c.id}"${c.id === preselectChecklistId ? ' selected' : ''}>${escapeHtml(c.name)}</option>`).join('');
   empSel.innerHTML = state.employees
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name, 'is'))
