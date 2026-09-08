@@ -99,6 +99,8 @@ function migrate(s) {
   });
   s.events = s.events || [];
   s.scratchNotes = s.scratchNotes || [];
+  s.checklists = s.checklists || [];
+  s.employees.forEach(e => { e.training = e.training || []; });
   s.departments.forEach(d => {
     if (!('parent_id' in d)) d.parent_id = null;
     if (!('manager_id' in d)) d.manager_id = null;
@@ -1298,7 +1300,7 @@ function init() {
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     // Close whichever modal is open, in preference order.
-    const modalIds = ['item-modal', 'scratch-modal', 'event-modal', 'depts-modal'];
+    const modalIds = ['training-detail-modal', 'assign-training-modal', 'checklist-editor-modal', 'training-library-modal', 'item-modal', 'scratch-modal', 'event-modal', 'depts-modal'];
     for (const id of modalIds) {
       const m = document.getElementById(id);
       if (m && !m.hidden) { m.hidden = true; return; }
@@ -1391,11 +1393,62 @@ function init() {
   });
   switchPeopleView(peopleView);
 
-  // Training section — placeholder handlers until the module system lands
-  const trainingPlaceholder = () => alert('Þjálfunar-módúlar koma á næsta skrefi. Segðu til þegar þú vilt smíða þau.');
-  document.getElementById('training-library-btn').addEventListener('click', trainingPlaceholder);
-  document.getElementById('training-assign-btn').addEventListener('click', trainingPlaceholder);
-  document.getElementById('training-empty-add-btn').addEventListener('click', trainingPlaceholder);
+  // Training section wiring
+  document.getElementById('training-library-btn').addEventListener('click', openChecklistLibrary);
+  document.getElementById('training-empty-add-btn').addEventListener('click', openChecklistLibrary);
+  document.getElementById('training-assign-btn').addEventListener('click', openAssignTraining);
+  document.getElementById('training-search').addEventListener('input', renderTraining);
+  document.getElementById('new-checklist-btn').addEventListener('click', () => openChecklistEditor(null));
+
+  // Checklist editor
+  const editorForm = document.getElementById('checklist-editor-form');
+  const editorItems = document.getElementById('checklist-editor-items');
+  const newItemInput = document.getElementById('checklist-new-item');
+
+  editorForm.addEventListener('submit', (e) => { e.preventDefault(); saveChecklist(); });
+  document.getElementById('checklist-delete-btn').addEventListener('click', () => deleteChecklist(editingChecklistId));
+
+  newItemInput.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const title = newItemInput.value.trim();
+    if (!title) return;
+    editingChecklistDraft.items.push({ id: 'ci_' + Math.random().toString(36).slice(2, 10), title });
+    newItemInput.value = '';
+    renderChecklistEditorItems();
+  });
+
+  editorItems.addEventListener('click', (e) => {
+    if (e.target.closest('[data-action=delete]')) {
+      const li = e.target.closest('[data-item-id]');
+      editingChecklistDraft.items = editingChecklistDraft.items.filter(i => i.id !== li.dataset.itemId);
+      renderChecklistEditorItems();
+    }
+  });
+  editorItems.addEventListener('input', (e) => {
+    if (e.target.matches('[data-action=rename]')) {
+      const li = e.target.closest('[data-item-id]');
+      const item = editingChecklistDraft.items.find(i => i.id === li.dataset.itemId);
+      if (item) item.title = e.target.value;
+    }
+  });
+
+  // Assign
+  document.getElementById('assign-training-form').addEventListener('submit', (e) => {
+    e.preventDefault(); saveAssignTraining();
+  });
+  document.getElementById('assign-deadline').addEventListener('input', (e) => {
+    const raw = e.target.value;
+    const formatted = formatDateStr(raw);
+    if (raw !== formatted) {
+      const atEnd = e.target.selectionStart >= raw.length;
+      e.target.value = formatted;
+      if (atEnd) e.target.setSelectionRange(formatted.length, formatted.length);
+    }
+  });
+
+  // Training detail remove
+  document.getElementById('training-detail-remove-btn').addEventListener('click', removeTrainingAssignment);
 
   // Sidebar toggle (Claude-style)
   const SIDEBAR_KEY = 'hr-app.sidebar-collapsed';
@@ -1444,7 +1497,8 @@ function initSections() {
 }
 function switchSection(name) {
   // Close any modal or drawer so the user isn't stuck behind them.
-  ['event-modal', 'scratch-modal', 'depts-modal', 'item-modal'].forEach(id => {
+  ['event-modal', 'scratch-modal', 'depts-modal', 'item-modal',
+   'training-library-modal', 'checklist-editor-modal', 'assign-training-modal', 'training-detail-modal'].forEach(id => {
     const m = document.getElementById(id);
     if (m) m.hidden = true;
   });
@@ -1463,23 +1517,319 @@ function switchSection(name) {
   if (name === 'training') renderTraining();
 }
 
-// ---------- Training (scaffold — module system comes next) ----------
+// ---------- Training — checklists + per-employee assignments ----------
+function findChecklist(id) { return (state.checklists || []).find(c => c.id === id); }
+
+function trainingProgress(assignment) {
+  const list = findChecklist(assignment.checklist_id);
+  if (!list) return { done: 0, total: 0, pct: 0 };
+  const total = list.items.length;
+  const doneSet = new Set(assignment.done_items || []);
+  const done = list.items.filter(i => doneSet.has(i.id)).length;
+  const pct = total ? (done / total) * 100 : 0;
+  return { done, total, pct };
+}
+
+function isAssignmentOverdue(a) {
+  if (!a.deadline) return false;
+  const d = parseFlexibleDate(a.deadline);
+  if (!d) return false;
+  const p = trainingProgress(a);
+  return p.done < p.total && d.getTime() < Date.now();
+}
+
 function renderTraining() {
   const list = document.getElementById('training-list');
   const empty = document.getElementById('training-empty');
   const summary = document.getElementById('training-summary');
-  // No data yet — show empty state until we build the module system
-  const inProgress = state.employees.filter(e => (e.training || []).length > 0);
-  if (!inProgress.length) {
+  const q = (document.getElementById('training-search').value || '').toLowerCase().trim();
+
+  // Employees with any assignment
+  const trainees = state.employees
+    .filter(e => (e.training || []).length > 0)
+    .filter(e => {
+      if (!q) return true;
+      const listNames = (e.training || []).map(a => findChecklist(a.checklist_id)?.name || '').join(' ');
+      return (e.name + ' ' + listNames).toLowerCase().includes(q);
+    });
+
+  // Stats (across all assignments)
+  let inProgress = 0, completed = 0, overdue = 0;
+  state.employees.forEach(e => {
+    (e.training || []).forEach(a => {
+      const p = trainingProgress(a);
+      if (p.total && p.done === p.total) completed++;
+      else inProgress++;
+      if (isAssignmentOverdue(a)) overdue++;
+    });
+  });
+  document.getElementById('training-in-progress').textContent = inProgress;
+  document.getElementById('training-completed').textContent = completed;
+  document.getElementById('training-overdue').textContent = overdue;
+
+  if (!trainees.length) {
     list.innerHTML = '';
     summary.hidden = true;
-    empty.hidden = false;
+    empty.hidden = true;
+    // If no assignments at all show the "start" empty state; otherwise no matches
+    if (state.employees.every(e => !(e.training || []).length)) {
+      empty.hidden = false;
+    } else {
+      list.innerHTML = '<li class="dept-empty" style="text-align:center;padding:24px;">Engin þjálfun samsvarar leitinni.</li>';
+    }
     return;
   }
   empty.hidden = true;
   summary.hidden = false;
-  // Later: compute stats and render employee cards with progress
-  list.innerHTML = '';
+
+  list.innerHTML = trainees.map(e => {
+    const dept = findDept(e.department_id);
+    const avatarColor = dept?.color || e.avatar_color;
+    const assigns = e.training || [];
+    let totalDone = 0, totalItems = 0;
+    assigns.forEach(a => {
+      const p = trainingProgress(a);
+      totalDone += p.done; totalItems += p.total;
+    });
+    const pct = totalItems ? (totalDone / totalItems) * 100 : 0;
+    const chips = assigns.map(a => {
+      const cl = findChecklist(a.checklist_id);
+      if (!cl) return '';
+      const p = trainingProgress(a);
+      const complete = p.total && p.done === p.total;
+      const over = isAssignmentOverdue(a);
+      const klass = complete ? 'complete' : (over ? 'overdue' : '');
+      return `<span class="training-module-chip ${klass}" data-emp-id="${e.id}" data-assignment-id="${a.id}">${escapeHtml(cl.name)} · ${p.done}/${p.total}${over ? ' · yfir tíma' : ''}</span>`;
+    }).join('');
+    return `
+      <li class="training-card" data-emp-id="${e.id}">
+        <div class="training-card-head">
+          <span class="training-card-avatar" style="background:${avatarColor}">${initials(e.name)}</span>
+          <div class="training-card-name">
+            <div class="name">${escapeHtml(e.name)}</div>
+            ${e.role ? `<div class="role">${escapeHtml(e.role)}</div>` : ''}
+          </div>
+          <span class="training-card-progress-text">${totalDone}/${totalItems}</span>
+        </div>
+        <div class="training-card-progress-bar"><div class="training-card-progress-fill" style="width:${pct}%"></div></div>
+        <div class="training-card-modules">${chips}</div>
+      </li>
+    `;
+  }).join('');
+
+  list.querySelectorAll('.training-module-chip').forEach(chip => {
+    chip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openTrainingDetail(chip.dataset.empId, chip.dataset.assignmentId);
+    });
+  });
+  list.querySelectorAll('.training-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const emp = findEmp(card.dataset.empId);
+      const firstAssignment = (emp?.training || [])[0];
+      if (firstAssignment) openTrainingDetail(emp.id, firstAssignment.id);
+    });
+  });
+}
+
+// ---------- Checklist library ----------
+function openChecklistLibrary() {
+  document.getElementById('training-library-modal').hidden = false;
+  renderChecklistLibrary();
+}
+
+function renderChecklistLibrary() {
+  const el = document.getElementById('checklist-library-list');
+  const empty = document.getElementById('checklist-library-empty');
+  const lists = state.checklists || [];
+  if (!lists.length) { el.innerHTML = ''; empty.hidden = false; return; }
+  empty.hidden = true;
+  el.innerHTML = lists.map(cl => {
+    const usedBy = state.employees.reduce((s, e) => s + ((e.training || []).some(a => a.checklist_id === cl.id) ? 1 : 0), 0);
+    return `
+      <li class="checklist-library-item" data-checklist-id="${cl.id}">
+        <div style="flex:1;">
+          <div class="checklist-library-name">${escapeHtml(cl.name)}</div>
+          <div class="checklist-library-meta">${cl.items.length} atriði · ${usedBy} starfsmenn</div>
+        </div>
+        <span style="color: var(--text-3); font-size: 13px;">Breyta →</span>
+      </li>
+    `;
+  }).join('');
+  el.querySelectorAll('[data-checklist-id]').forEach(li => {
+    li.addEventListener('click', () => openChecklistEditor(li.dataset.checklistId));
+  });
+}
+
+// ---------- Checklist editor ----------
+let editingChecklistId = null;
+let editingChecklistDraft = null;
+
+function openChecklistEditor(id) {
+  editingChecklistId = id;
+  const cl = id ? findChecklist(id) : null;
+  editingChecklistDraft = cl
+    ? { name: cl.name, description: cl.description || '', items: cl.items.map(i => ({ ...i })) }
+    : { name: '', description: '', items: [] };
+  document.getElementById('checklist-editor-title').textContent = cl ? 'Breyta tékklista' : 'Nýr tékklisti';
+  document.getElementById('checklist-name').value = editingChecklistDraft.name;
+  document.getElementById('checklist-description').value = editingChecklistDraft.description;
+  document.getElementById('checklist-delete-btn').hidden = !cl;
+  document.getElementById('checklist-new-item').value = '';
+  renderChecklistEditorItems();
+  document.getElementById('training-library-modal').hidden = true;
+  document.getElementById('checklist-editor-modal').hidden = false;
+  setTimeout(() => document.getElementById('checklist-name').focus(), 50);
+}
+
+function renderChecklistEditorItems() {
+  const el = document.getElementById('checklist-editor-items');
+  el.innerHTML = editingChecklistDraft.items.map(i => `
+    <li class="checklist-editor-item" data-item-id="${i.id}">
+      <input value="${escapeHtml(i.title)}" data-action="rename" />
+      <button type="button" data-action="delete" title="Eyða">✕</button>
+    </li>
+  `).join('');
+}
+
+function saveChecklist() {
+  const name = document.getElementById('checklist-name').value.trim();
+  const description = document.getElementById('checklist-description').value.trim();
+  if (!name) return;
+  editingChecklistDraft.name = name;
+  editingChecklistDraft.description = description;
+  state.checklists = state.checklists || [];
+  if (editingChecklistId) {
+    const existing = findChecklist(editingChecklistId);
+    if (existing) Object.assign(existing, editingChecklistDraft);
+  } else {
+    state.checklists.push({
+      id: 'cl_' + Math.random().toString(36).slice(2, 10),
+      ...editingChecklistDraft,
+      created_at: new Date().toISOString(),
+    });
+  }
+  save();
+  document.getElementById('checklist-editor-modal').hidden = true;
+  renderTraining();
+}
+
+function deleteChecklist(id) {
+  const cl = findChecklist(id);
+  if (!cl) return;
+  const usedBy = state.employees.reduce((s, e) => s + ((e.training || []).some(a => a.checklist_id === id) ? 1 : 0), 0);
+  const msg = usedBy
+    ? `Eyða tékklistanum "${cl.name}"? ${usedBy} starfsmenn missa úthlutunina.`
+    : `Eyða tékklistanum "${cl.name}"?`;
+  if (!confirm(msg)) return;
+  state.employees.forEach(e => {
+    e.training = (e.training || []).filter(a => a.checklist_id !== id);
+  });
+  state.checklists = state.checklists.filter(c => c.id !== id);
+  save();
+  document.getElementById('checklist-editor-modal').hidden = true;
+  renderTraining();
+}
+
+// ---------- Assign training ----------
+function openAssignTraining() {
+  const clSel = document.getElementById('assign-checklist-select');
+  const empSel = document.getElementById('assign-employee-select');
+  const lists = state.checklists || [];
+  if (!lists.length) {
+    alert('Búðu til tékklista fyrst í Þjálfunar-safninu.');
+    openChecklistLibrary();
+    return;
+  }
+  clSel.innerHTML = lists.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  empSel.innerHTML = state.employees
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name, 'is'))
+    .map(e => `<option value="${e.id}">${escapeHtml(e.name)}${e.role ? ' — ' + escapeHtml(e.role) : ''}</option>`).join('');
+  document.getElementById('assign-deadline').value = '';
+  document.getElementById('assign-training-modal').hidden = false;
+  setTimeout(() => clSel.focus(), 50);
+}
+
+function saveAssignTraining() {
+  const clId = document.getElementById('assign-checklist-select').value;
+  const empId = document.getElementById('assign-employee-select').value;
+  const deadline = document.getElementById('assign-deadline').value.trim();
+  if (!clId || !empId) return;
+  const emp = findEmp(empId);
+  if (!emp) return;
+  emp.training = emp.training || [];
+  // Prevent duplicate assignment
+  if (emp.training.some(a => a.checklist_id === clId)) {
+    if (!confirm('Þessi tékklisti er þegar úthlutaður. Bæta við nýrri úthlutun samt?')) return;
+  }
+  emp.training.push({
+    id: 'a_' + Math.random().toString(36).slice(2, 10),
+    checklist_id: clId,
+    assigned_at: new Date().toISOString(),
+    deadline: deadline || null,
+    done_items: [],
+  });
+  save();
+  document.getElementById('assign-training-modal').hidden = true;
+  renderTraining();
+}
+
+// ---------- Training detail (view/tick items) ----------
+let detailEmpId = null;
+let detailAssignmentId = null;
+
+function openTrainingDetail(empId, assignmentId) {
+  detailEmpId = empId;
+  detailAssignmentId = assignmentId;
+  renderTrainingDetail();
+  document.getElementById('training-detail-modal').hidden = false;
+}
+
+function renderTrainingDetail() {
+  const emp = findEmp(detailEmpId);
+  if (!emp) return;
+  const a = (emp.training || []).find(x => x.id === detailAssignmentId);
+  if (!a) return;
+  const cl = findChecklist(a.checklist_id);
+  if (!cl) return;
+  document.getElementById('training-detail-title').textContent = cl.name;
+  document.getElementById('training-detail-subtitle').textContent = emp.name + (a.deadline ? ' · frestur ' + a.deadline : '');
+  const p = trainingProgress(a);
+  document.getElementById('training-detail-fill').style.width = p.pct + '%';
+  document.getElementById('training-detail-progress').textContent = `${p.done} af ${p.total}`;
+  const doneSet = new Set(a.done_items || []);
+  const list = document.getElementById('training-detail-items');
+  list.innerHTML = cl.items.map(i => `
+    <li class="${doneSet.has(i.id) ? 'done' : ''}" data-item-id="${i.id}">
+      <span class="check"></span>
+      <span class="title">${escapeHtml(i.title)}</span>
+    </li>
+  `).join('');
+  list.querySelectorAll('[data-item-id]').forEach(li => {
+    li.addEventListener('click', () => {
+      const itemId = li.dataset.itemId;
+      const done = new Set(a.done_items || []);
+      if (done.has(itemId)) done.delete(itemId); else done.add(itemId);
+      a.done_items = [...done];
+      save();
+      renderTrainingDetail();
+      renderTraining();
+    });
+  });
+}
+
+function removeTrainingAssignment() {
+  const emp = findEmp(detailEmpId);
+  if (!emp) return;
+  const a = (emp.training || []).find(x => x.id === detailAssignmentId);
+  if (!a) return;
+  const cl = findChecklist(a.checklist_id);
+  if (!confirm(`Fjarlægja "${cl?.name || 'þjálfun'}" úthlutun frá ${emp.name}?`)) return;
+  emp.training = emp.training.filter(x => x.id !== detailAssignmentId);
+  save();
+  document.getElementById('training-detail-modal').hidden = true;
+  renderTraining();
 }
 
 // ---------- Events ----------

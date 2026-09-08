@@ -3458,3 +3458,139 @@ body { display: flex; flex-direction: column; }
 }
 .training-module-chip.complete { background: rgba(16, 185, 129, 0.1); color: var(--success); border-color: transparent; }
 .training-module-chip.overdue { background: rgba(225, 29, 72, 0.1); color: var(--danger); border-color: transparent; }
+
+/* ============== Checklist library + editor ============== */
+.checklist-library-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.checklist-library-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color .12s, background-color .12s;
+}
+.checklist-library-item:hover { border-color: var(--primary); background: var(--surface-2); }
+.checklist-library-name {
+  flex: 1;
+  font-weight: 650;
+  font-size: 14px;
+  color: var(--text);
+}
+.checklist-library-meta {
+  font-size: 12px;
+  color: var(--text-3);
+  font-weight: 500;
+}
+
+.checklist-items-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin: 20px 0 8px;
+}
+.checklist-items-header h3 {
+  margin: 0; font-size: 13px; font-weight: 700;
+  color: var(--text-2); text-transform: uppercase; letter-spacing: 0.5px;
+}
+.checklist-editor-items {
+  list-style: none; padding: 0; margin: 0 0 8px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.checklist-editor-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 4px;
+}
+.checklist-editor-item input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13.5px;
+  outline: none;
+  color: var(--text);
+  background: white;
+  font-family: inherit;
+}
+.checklist-editor-item input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
+.checklist-editor-item button {
+  background: none; border: none; color: var(--text-3);
+  cursor: pointer; padding: 6px 8px; border-radius: 6px; font-size: 14px;
+}
+.checklist-editor-item button:hover { color: var(--danger); background: var(--danger-soft); }
+.checklist-add-item-row input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-family: inherit;
+  color: var(--text);
+  background: transparent;
+  outline: none;
+  transition: border-color .12s, background-color .12s;
+}
+.checklist-add-item-row input:focus, .checklist-add-item-row input:hover {
+  border-color: var(--primary);
+  background: white;
+  border-style: solid;
+}
+
+/* Training detail modal */
+.training-detail-progress {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 20px;
+}
+.training-detail-bar {
+  flex: 1;
+  height: 10px;
+  background: var(--surface-2);
+  border-radius: 5px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.training-detail-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #059669);
+  border-radius: 5px;
+  transition: width .3s ease;
+}
+.training-detail-progress-text {
+  font-weight: 700; font-size: 13px; color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.training-detail-items {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.training-detail-items li {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color .12s;
+  border: 1px solid transparent;
+}
+.training-detail-items li:hover { background: var(--surface-2); }
+.training-detail-items li.done { background: rgba(16, 185, 129, 0.06); }
+.training-detail-items li.done .title { text-decoration: line-through; color: var(--text-3); }
+.training-detail-items .check {
+  width: 22px; height: 22px;
+  border: 2px solid var(--border-strong);
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .12s;
+}
+.training-detail-items li:hover .check { border-color: var(--success); }
+.training-detail-items li.done .check {
+  background: var(--success); border-color: var(--success); color: white;
+}
+.training-detail-items li.done .check::after {
+  content: "✓"; font-size: 13px; font-weight: 700;
+}
+.training-detail-items .title {
+  flex: 1; font-size: 14px; color: var(--text); font-weight: 500;
+}

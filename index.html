@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=32" />
+<link rel="stylesheet" href="style.css?v=33" />
 </head>
 <body>
   <button type="button" class="sidebar-toggle" id="sidebar-toggle" title="Fela / sýna hliðardálk">
@@ -633,6 +633,127 @@
     </div>
   </div>
 
+  <!-- Training library modal -->
+  <div class="modal" id="training-library-modal" hidden>
+    <div class="modal-scrim" data-close-modal></div>
+    <div class="modal-card" style="width:640px;">
+      <header class="modal-header">
+        <div>
+          <h2>Þjálfunar-safn</h2>
+          <p class="subtle">Búðu til tékklista sem má úthluta á starfsfólk</p>
+        </div>
+        <button class="icon-btn" data-close-modal title="Loka">✕</button>
+      </header>
+      <div class="modal-body">
+        <button type="button" class="btn primary" id="new-checklist-btn" style="margin-bottom:16px;">+ Nýr tékklisti</button>
+        <ul class="checklist-library-list" id="checklist-library-list"></ul>
+        <div class="dept-empty" id="checklist-library-empty" hidden>Engir tékklistar ennþá. Búðu til þann fyrsta að ofan.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Checklist editor modal -->
+  <div class="modal" id="checklist-editor-modal" hidden>
+    <div class="modal-scrim" data-close-modal></div>
+    <div class="modal-card" style="width:600px;">
+      <header class="modal-header">
+        <div>
+          <h2 id="checklist-editor-title">Nýr tékklisti</h2>
+          <p class="subtle">Skilgreindu atriði sem starfsmaður þarf að klára</p>
+        </div>
+        <button class="icon-btn" data-close-modal title="Loka">✕</button>
+      </header>
+      <form class="modal-body" id="checklist-editor-form">
+        <label class="item-field">
+          <span>Nafn tékklista</span>
+          <input type="text" id="checklist-name" required maxlength="120" placeholder="t.d. Nýliðafræðsla" />
+        </label>
+        <label class="item-field">
+          <span>Lýsing (valfrjálst)</span>
+          <input type="text" id="checklist-description" maxlength="200" placeholder="Hvað þessi þjálfun snýst um" />
+        </label>
+
+        <div class="checklist-items-header">
+          <h3>Atriði</h3>
+        </div>
+        <ul class="checklist-editor-items" id="checklist-editor-items"></ul>
+        <div class="checklist-add-item-row">
+          <input type="text" id="checklist-new-item" placeholder="+ Bæta við atriði og ýttu á Enter" />
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn ghost danger" id="checklist-delete-btn" hidden>Eyða tékklista</button>
+          <div class="footer-right">
+            <button type="button" class="btn" data-close-modal>Hætta við</button>
+            <button type="submit" class="btn primary">Vista</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Assign training modal -->
+  <div class="modal" id="assign-training-modal" hidden>
+    <div class="modal-scrim" data-close-modal></div>
+    <div class="modal-card" style="width:520px;">
+      <header class="modal-header">
+        <div>
+          <h2>Úthluta þjálfun</h2>
+          <p class="subtle">Veldu tékklista og starfsmann</p>
+        </div>
+        <button class="icon-btn" data-close-modal title="Loka">✕</button>
+      </header>
+      <form class="modal-body" id="assign-training-form">
+        <label class="item-field">
+          <span>Tékklisti</span>
+          <select id="assign-checklist-select" required></select>
+        </label>
+        <label class="item-field">
+          <span>Starfsmaður</span>
+          <select id="assign-employee-select" required></select>
+        </label>
+        <label class="item-field">
+          <span>Frestur (valfrjálst)</span>
+          <input type="text" id="assign-deadline" placeholder="dd.mm.áááá" inputmode="numeric" autocomplete="off" />
+        </label>
+        <div class="modal-footer">
+          <div></div>
+          <div class="footer-right">
+            <button type="button" class="btn" data-close-modal>Hætta við</button>
+            <button type="submit" class="btn primary">Úthluta</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Training detail modal (view/tick items for one employee) -->
+  <div class="modal" id="training-detail-modal" hidden>
+    <div class="modal-scrim" data-close-modal></div>
+    <div class="modal-card" style="width:560px;">
+      <header class="modal-header">
+        <div>
+          <h2 id="training-detail-title">Þjálfun</h2>
+          <p class="subtle" id="training-detail-subtitle"></p>
+        </div>
+        <button class="icon-btn" data-close-modal title="Loka">✕</button>
+      </header>
+      <div class="modal-body">
+        <div class="training-detail-progress">
+          <div class="training-detail-bar"><div class="training-detail-fill" id="training-detail-fill"></div></div>
+          <div class="training-detail-progress-text" id="training-detail-progress"></div>
+        </div>
+        <ul class="training-detail-items" id="training-detail-items"></ul>
+        <div class="modal-footer">
+          <button type="button" class="btn ghost danger" id="training-detail-remove-btn">Fjarlægja úthlutun</button>
+          <div class="footer-right">
+            <button type="button" class="btn" data-close-modal>Loka</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Public RSVP page (shown when URL is #invite=…) -->
   <div class="invite-page" id="invite-page" hidden>
     <main class="invite-card" id="invite-card">
@@ -640,6 +761,6 @@
     </main>
   </div>
 
-  <script src="app.js?v=30"></script>
+  <script src="app.js?v=31"></script>
 </body>
 </html>
