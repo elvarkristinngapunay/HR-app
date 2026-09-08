@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=35" />
+<link rel="stylesheet" href="style.css?v=36" />
 </head>
 <body>
   <button type="button" class="sidebar-toggle" id="sidebar-toggle" title="Fela / sýna hliðardálk">
@@ -660,11 +660,14 @@
         </label>
 
         <div class="checklist-items-header">
-          <h3>Atriði</h3>
+          <h3>Atriði <span class="checklist-item-count" id="checklist-item-count"></span></h3>
+          <span class="field-hint">Sláðu inn atriði og ýttu á Enter til að bæta við — má líka líma inn margar línur í einu.</span>
         </div>
         <ul class="checklist-editor-items" id="checklist-editor-items"></ul>
         <div class="checklist-add-item-row">
-          <input type="text" id="checklist-new-item" placeholder="+ Bæta við atriði og ýttu á Enter" />
+          <span class="checklist-editor-check checklist-editor-check-add" aria-hidden="true"></span>
+          <input type="text" id="checklist-new-item" placeholder="Sláðu inn atriði…" />
+          <button type="button" class="btn primary checklist-add-item-btn" id="checklist-add-item-btn">+ Bæta við</button>
         </div>
 
         <div class="modal-footer">
@@ -747,6 +750,6 @@
     </main>
   </div>
 
-  <script src="app.js?v=33"></script>
+  <script src="app.js?v=34"></script>
 </body>
 </html>

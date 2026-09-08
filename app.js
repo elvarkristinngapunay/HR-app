@@ -1406,14 +1406,35 @@ function init() {
   editorForm.addEventListener('submit', (e) => { e.preventDefault(); saveChecklist(); });
   document.getElementById('checklist-delete-btn').addEventListener('click', () => deleteChecklist(editingChecklistId));
 
+  const addNewItems = (raw) => {
+    const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (!lines.length) return false;
+    lines.forEach(line => {
+      editingChecklistDraft.items.push({
+        id: 'ci_' + Math.random().toString(36).slice(2, 10),
+        title: line,
+      });
+    });
+    newItemInput.value = '';
+    renderChecklistEditorItems();
+    updateChecklistItemCount();
+    setTimeout(() => newItemInput.focus(), 0);
+    return true;
+  };
   newItemInput.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    const title = newItemInput.value.trim();
-    if (!title) return;
-    editingChecklistDraft.items.push({ id: 'ci_' + Math.random().toString(36).slice(2, 10), title });
-    newItemInput.value = '';
-    renderChecklistEditorItems();
+    addNewItems(newItemInput.value);
+  });
+  document.getElementById('checklist-add-item-btn').addEventListener('click', () => {
+    addNewItems(newItemInput.value);
+  });
+  newItemInput.addEventListener('paste', (e) => {
+    const text = (e.clipboardData || window.clipboardData).getData('text');
+    if (text && text.includes('\n')) {
+      e.preventDefault();
+      addNewItems(text);
+    }
   });
 
   editorItems.addEventListener('click', (e) => {
@@ -1691,12 +1712,22 @@ function openChecklistEditor(id) {
 
 function renderChecklistEditorItems() {
   const el = document.getElementById('checklist-editor-items');
-  el.innerHTML = editingChecklistDraft.items.map(i => `
+  el.innerHTML = editingChecklistDraft.items.map((i, idx) => `
     <li class="checklist-editor-item" data-item-id="${i.id}">
-      <input value="${escapeHtml(i.title)}" data-action="rename" />
+      <span class="checklist-editor-check" aria-hidden="true"></span>
+      <span class="checklist-editor-index">${idx + 1}.</span>
+      <input value="${escapeHtml(i.title)}" data-action="rename" placeholder="Nafn atriðis" />
       <button type="button" data-action="delete" title="Eyða">✕</button>
     </li>
   `).join('');
+  updateChecklistItemCount();
+}
+
+function updateChecklistItemCount() {
+  const el = document.getElementById('checklist-item-count');
+  if (!el) return;
+  const n = editingChecklistDraft.items.length;
+  el.textContent = n ? `(${n})` : '';
 }
 
 function saveChecklist() {
