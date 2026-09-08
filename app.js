@@ -1300,7 +1300,7 @@ function init() {
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     // Close whichever modal is open, in preference order.
-    const modalIds = ['training-detail-modal', 'assign-training-modal', 'checklist-editor-modal', 'training-library-modal', 'item-modal', 'scratch-modal', 'event-modal', 'depts-modal'];
+    const modalIds = ['training-detail-modal', 'assign-training-modal', 'checklist-editor-modal', 'item-modal', 'scratch-modal', 'event-modal', 'depts-modal'];
     for (const id of modalIds) {
       const m = document.getElementById(id);
       if (m && !m.hidden) { m.hidden = true; return; }
@@ -1496,7 +1496,7 @@ function initSections() {
 function switchSection(name) {
   // Close any modal or drawer so the user isn't stuck behind them.
   ['event-modal', 'scratch-modal', 'depts-modal', 'item-modal',
-   'training-library-modal', 'checklist-editor-modal', 'assign-training-modal', 'training-detail-modal'].forEach(id => {
+   'checklist-editor-modal', 'assign-training-modal', 'training-detail-modal'].forEach(id => {
     const m = document.getElementById(id);
     if (m) m.hidden = true;
   });
@@ -1669,35 +1669,6 @@ function renderChecklistsGrid() {
   });
 }
 
-// ---------- Checklist library (legacy modal — still available but not required) ----------
-function openChecklistLibrary() {
-  document.getElementById('training-library-modal').hidden = false;
-  renderChecklistLibrary();
-}
-
-function renderChecklistLibrary() {
-  const el = document.getElementById('checklist-library-list');
-  const empty = document.getElementById('checklist-library-empty');
-  const lists = state.checklists || [];
-  if (!lists.length) { el.innerHTML = ''; empty.hidden = false; return; }
-  empty.hidden = true;
-  el.innerHTML = lists.map(cl => {
-    const usedBy = state.employees.reduce((s, e) => s + ((e.training || []).some(a => a.checklist_id === cl.id) ? 1 : 0), 0);
-    return `
-      <li class="checklist-library-item" data-checklist-id="${cl.id}">
-        <div style="flex:1;">
-          <div class="checklist-library-name">${escapeHtml(cl.name)}</div>
-          <div class="checklist-library-meta">${cl.items.length} atriði · ${usedBy} starfsmenn</div>
-        </div>
-        <span style="color: var(--text-3); font-size: 13px;">Breyta →</span>
-      </li>
-    `;
-  }).join('');
-  el.querySelectorAll('[data-checklist-id]').forEach(li => {
-    li.addEventListener('click', () => openChecklistEditor(li.dataset.checklistId));
-  });
-}
-
 // ---------- Checklist editor ----------
 let editingChecklistId = null;
 let editingChecklistDraft = null;
@@ -1714,7 +1685,6 @@ function openChecklistEditor(id) {
   document.getElementById('checklist-delete-btn').hidden = !cl;
   document.getElementById('checklist-new-item').value = '';
   renderChecklistEditorItems();
-  document.getElementById('training-library-modal').hidden = true;
   document.getElementById('checklist-editor-modal').hidden = false;
   setTimeout(() => document.getElementById('checklist-name').focus(), 50);
 }
