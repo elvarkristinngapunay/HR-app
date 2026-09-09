@@ -1628,6 +1628,41 @@ function renderToday() {
     }).join('')));
   }
 
+  // 1b. Afmæli í þessum mánuði (except today, which is above)
+  const monthBirthdays = state.employees
+    .map(e => {
+      const bd = parseFlexibleDate(e.birthdate);
+      if (!bd) return null;
+      if (bd.getMonth() !== now.getMonth()) return null;
+      if (bd.getDate() === now.getDate()) return null; // shown in "í dag" already
+      return { emp: e, bd };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.bd.getDate() - b.bd.getDate());
+  if (monthBirthdays.length) {
+    blocks.push(todayBlock('🎂', `Afmæli í ${MONTHS_IS_LONG[now.getMonth()]}`, monthBirthdays.length, false,
+      monthBirthdays.map(x => {
+        const age = now.getFullYear() - x.bd.getFullYear();
+        const dept = findDept(x.emp.department_id);
+        const color = dept?.color || x.emp.avatar_color;
+        const past = x.bd.getDate() < now.getDate();
+        const daysAway = x.bd.getDate() - now.getDate();
+        let dateLabel;
+        if (past) dateLabel = `${x.bd.getDate()}. ${MONTHS_IS[x.bd.getMonth()]}`;
+        else if (daysAway === 1) dateLabel = 'á morgun';
+        else if (daysAway < 7) dateLabel = daysAway + ' dagar';
+        else dateLabel = `${x.bd.getDate()}. ${MONTHS_IS[x.bd.getMonth()]}`;
+        return `
+          <li class="today-item ${past ? 'today-item-past' : ''}" data-nav="drawer" data-emp-id="${x.emp.id}">
+            <span class="today-item-time ${past ? 'past' : ''}">${escapeHtml(dateLabel)}</span>
+            <span class="today-item-avatar" style="background:${color}">${initials(x.emp.name)}</span>
+            <span class="today-item-title">${escapeHtml(x.emp.name)}</span>
+            <span class="today-item-meta">${age} ára${past ? ' · liðið' : ''}</span>
+          </li>
+        `;
+      }).join('')));
+  }
+
   // 2. Viðburðir í dag
   const eventsToday = (state.events || []).filter(ev => ev.date_iso === todayIso)
     .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
