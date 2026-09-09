@@ -1788,12 +1788,16 @@ function renderToday() {
       }).join('')));
   }
 
+  // "Næst á dagskrá" — always shown when today has little going on (or as a supplement)
+  const upcomingBlock = buildUpcomingBlock(now, todayIso);
+  if (upcomingBlock) blocks.push(upcomingBlock);
+
   if (!blocks.length) {
     wrap.innerHTML = `
       <div class="today-wrap">
         <div class="today-empty">
           <div class="icon">☕</div>
-          <h3>Ekkert á dagskrá í dag</h3>
+          <h3>Ekkert á dagskrá í dag eða á næstunni</h3>
           <p>Njóttu dagsins — engir viðburðir, verkefni eða áminningar.</p>
         </div>
       </div>
@@ -1822,6 +1826,179 @@ function renderToday() {
       }
     });
   });
+}
+
+function buildUpcomingBlock(now, todayIso) {
+  const items = [];
+  const WINDOW_DAYS = 14;
+  const in7days = new Date(now); in7days.setDate(in7days.getDate() + WINDOW_DAYS);
+  const in7iso = in7days.toISOString().slice(0, 10);
+
+  // Upcoming birthdays (next 30 days)
+  state.employees.forEach(e => {
+    const bd = parseFlexibleDate(e.birthdate);
+    if (!bd) return;
+    for (let year of [now.getFullYear(), now.getFullYear() + 1]) {
+      const next = new Date(year, bd.getMonth(), bd.getDate());
+      const daysAway = Math.round((next - now) / 86400000);
+      if (daysAway > 0 && daysAway <= 30) {
+        const age = year - bd.getFullYear();
+        items.push({
+          date: next,
+          sortKey: next.toISOString().slice(0, 10),
+          icon: '🎂',
+          title: e.name,
+          meta: `${age} ára afmæli`,
+          nav: { type: 'drawer', emp_id: e.id },
+          color: findDept(e.department_id)?.color || e.avatar_color,
+        });
+        break;
+      }
+    }
+  });
+
+  // Upcoming events (after today, within window)
+  (state.events || []).forEach(ev => {
+    if (!ev.date_iso) return;
+    if (ev.date_iso <= todayIso) return;
+    if (ev.date_iso > in7iso) return;
+    items.push({
+      date: new Date(ev.date_iso),
+      sortKey: ev.date_iso + 'T' + (ev.time || '00:00'),
+      icon: '📅',
+      title: ev.title,
+      meta: (ev.time ? ev.time + ' · ' : '') + (ev.location || 'Viðburður'),
+      nav: { type: 'event', event_id: ev.id },
+    });
+  });
+
+  // Upcoming scratch notes (event_at or remind_at)
+  (state.scratchNotes || []).forEach(sn => {
+    ['event_at', 'remind_at'].forEach(k => {
+      const val = sn[k];
+      if (!val) return;
+      const d = new Date(val);
+      const iso = d.toISOString().slice(0, 10);
+      if (iso <= todayIso || iso > in7iso) return;
+      items.push({
+        date: d,
+        sortKey: d.toISOString(),
+        icon: k === 'event_at' ? '🔔' : '🔔',
+        title: sn.title || sn.body.slice(0, 60),
+        meta: k === 'event_at' ? 'Glósa · dagsetning' : 'Glósa · minna á',
+        nav: { type: 'scratch', scratch_id: sn.id },
+      });
+    });
+  });
+
+  // Upcoming party items (pickup within window)
+  (state.events || []).forEach(ev => {
+    const walk = (cats) => {
+      cats.forEach(c => {
+        c.items.forEach(i => {
+          if (i.done) return;
+          const d = parseFlexibleDate(i.pickup_date);
+          if (!d) return;
+          const iso = d.toISOString().slice(0, 10);
+          if (iso <= todayIso || iso > in7iso) return;
+          items.push({
+            date: d,
+            sortKey: iso + 'T' + (i.pickup_time || '00:00'),
+            icon: i.pickup_type === 'pickup' ? '🛒' : '🚚',
+            title: i.name,
+            meta: `${i.pickup_type === 'pickup' ? 'Ná í' : 'Til mín'}${i.pickup_time ? ' · ' + i.pickup_time : ''} · ${ev.title}`,
+            nav: { type: 'event', event_id: ev.id },
+          });
+        });
+        walk(c.subcategories || []);
+      });
+    };
+    walk(ev.budget_categories || []);
+  });
+
+  // Upcoming event tasks (due within window)
+  (state.events || []).forEach(ev => {
+    (ev.tasks || []).forEach(t => {
+      if (t.done || !t.due_date) return;
+      const d = parseFlexibleDate(t.due_date);
+      if (!d) return;
+      const iso = d.toISOString().slice(0, 10);
+      if (iso <= todayIso || iso > in7iso) return;
+      items.push({
+        date: d,
+        sortKey: iso,
+        icon: '✅',
+        title: t.title,
+        meta: `Verkefni · ${ev.title}`,
+        nav: { type: 'event', event_id: ev.id },
+      });
+    });
+  });
+
+  // Ongoing training (not overdue, not complete) — show a few
+  const ongoingTraining = [];
+  state.employees.forEach(e => {
+    (e.training || []).forEach(a => {
+      const p = trainingProgress(a);
+      if (p.total && p.done < p.total && !isAssignmentOverdue(a)) {
+        ongoingTraining.push({ emp: e, a, p });
+      }
+    });
+  });
+  ongoingTraining
+    .sort((a, b) => (a.a.deadline || '9999').localeCompare(b.a.deadline || '9999'))
+    .slice(0, 5)
+    .forEach(x => {
+      const cl = findChecklist(x.a.checklist_id);
+      items.push({
+        date: new Date(9999, 0, 1), // put after date-based items
+        sortKey: 'zzz-training-' + x.emp.id,
+        icon: '🎓',
+        title: x.emp.name,
+        meta: `${cl?.name || 'Þjálfun'} · ${x.p.done}/${x.p.total}${x.a.deadline ? ' · frestur ' + x.a.deadline : ''}`,
+        nav: { type: 'training', emp_id: x.emp.id, assignment_id: x.a.id },
+        color: findDept(x.emp.department_id)?.color || x.emp.avatar_color,
+      });
+    });
+
+  if (!items.length) return null;
+
+  items.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+  const top = items.slice(0, 15);
+
+  const rows = top.map(x => {
+    const nav = Object.entries(x.nav).map(([k, v]) => `data-${k.replace(/_/g, '-')}="${v}"`).join(' ');
+    const type = x.nav.type;
+    const dateLabel = x.date.getFullYear() === 9999 ? 'í gangi' : friendlyRelDate(x.date, now);
+    const avatarHtml = x.color
+      ? `<span class="today-item-avatar" style="background:${x.color}">${initials(x.title)}</span>`
+      : `<span class="today-item-time no-time" style="min-width:24px;">${x.icon}</span>`;
+    return `
+      <li class="today-item" data-nav="${type}" ${nav}>
+        <span class="today-item-time">${escapeHtml(dateLabel)}</span>
+        ${avatarHtml}
+        <span class="today-item-title">${escapeHtml(x.title)}</span>
+        <span class="today-item-meta">${escapeHtml(x.meta)}</span>
+      </li>
+    `;
+  }).join('');
+
+  return `
+    <div class="today-block">
+      <div class="today-block-head">
+        <h3><span class="icon">📌</span> Næst á dagskrá</h3>
+        <span class="today-block-count">${top.length}</span>
+      </div>
+      <ul class="today-list">${rows}</ul>
+    </div>
+  `;
+}
+
+function friendlyRelDate(d, now) {
+  const days = Math.round((d - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
+  if (days === 1) return 'á morgun';
+  if (days > 1 && days < 7) return days + ' dagar';
+  return `${d.getDate()}. ${MONTHS_IS[d.getMonth()]}`;
 }
 
 function todayBlock(icon, title, count, warn, itemsHtml) {
