@@ -3922,3 +3922,34 @@ body { display: flex; flex-direction: column; }
 .today-empty p { margin: 0; font-size: 13px; }
 
 .today-item.today-item-past { opacity: 0.55; }
+
+/* Í dag quick actions (Merkja búið / Seinka) */
+.today-actions {
+  display: inline-flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity .12s;
+}
+.today-item:hover .today-actions { opacity: 1; }
+.today-action {
+  background: white;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 650;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color .12s, color .12s, background-color .12s;
+}
+.today-action:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+.today-action[data-quick=mark-done]:hover {
+  border-color: var(--success);
+  color: var(--success);
+  background: rgba(16,185,129,0.1);
+}

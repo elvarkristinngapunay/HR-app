@@ -1703,6 +1703,10 @@ function renderToday() {
             <span class="today-item-title">${escapeHtml(x.task.title)}</span>
             <span class="today-item-meta">${escapeHtml(x.ev.title)}${assignee ? ' · ' + escapeHtml(assignee.name.split(' ')[0]) : ''}</span>
             ${overdue ? '<span class="today-item-badge overdue">yfir</span>' : ''}
+            <span class="today-actions">
+              <button type="button" class="today-action" data-quick="mark-done" data-kind="event-task" data-event-id="${x.ev.id}" data-task-id="${x.task.id}" title="Merkja búið">✓ Búið</button>
+              <button type="button" class="today-action" data-quick="postpone" data-kind="event-task" data-event-id="${x.ev.id}" data-task-id="${x.task.id}" title="Seinka">→ Seinka</button>
+            </span>
           </li>
         `;
       }).join('')));
@@ -1734,6 +1738,10 @@ function renderToday() {
           <span class="today-item-time ${x.item.pickup_time || 'no-time'}">${x.item.pickup_time || '—'}</span>
           <span class="today-item-title">${escapeHtml(x.item.name)}</span>
           <span class="today-item-meta">${x.item.pickup_type === 'pickup' ? '🛒 Ná í' : '🚚 Til mín'}${x.item.pickup_location ? ' · ' + escapeHtml(x.item.pickup_location) : ''} · ${escapeHtml(x.ev.title)}</span>
+          <span class="today-actions">
+            <button type="button" class="today-action" data-quick="mark-done" data-kind="party-item" data-item-id="${x.item.id}" title="Merkja búið">✓ Sótt</button>
+            <button type="button" class="today-action" data-quick="postpone" data-kind="party-item" data-item-id="${x.item.id}" title="Seinka">→ Seinka</button>
+          </span>
         </li>
       `).join('')));
   }
@@ -1818,6 +1826,9 @@ function renderToday() {
             <span class="today-item-title">${escapeHtml(x.emp.name)}</span>
             <span class="today-item-meta">${escapeHtml(cl?.name || 'Þjálfun')} · ${p.done}/${p.total}</span>
             ${overdue ? '<span class="today-item-badge overdue">yfir</span>' : ''}
+            <span class="today-actions">
+              <button type="button" class="today-action" data-quick="postpone" data-kind="training" data-emp-id="${x.emp.id}" data-assignment-id="${x.a.id}" title="Seinka fresti">→ Seinka</button>
+            </span>
           </li>
         `;
       }).join('')));
@@ -1842,6 +1853,14 @@ function renderToday() {
 
   wrap.innerHTML = `<div class="today-wrap">${blocks.join('')}</div>`;
 
+  // Wire quick action buttons first (so they don't bubble to nav)
+  wrap.querySelectorAll('[data-quick]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handleTodayQuickAction(btn);
+    });
+  });
+
   // Wire click navigation
   wrap.querySelectorAll('[data-nav]').forEach(el => {
     el.addEventListener('click', () => {
@@ -1861,6 +1880,69 @@ function renderToday() {
       }
     });
   });
+}
+
+function handleTodayQuickAction(btn) {
+  const quick = btn.dataset.quick;
+  const kind = btn.dataset.kind;
+
+  if (quick === 'mark-done') {
+    if (kind === 'event-task') {
+      const ev = state.events.find(e => e.id === btn.dataset.eventId);
+      const task = ev?.tasks.find(t => t.id === btn.dataset.taskId);
+      if (task) { task.done = true; save(); renderToday(); }
+    } else if (kind === 'party-item') {
+      const item = findPartyItemAnywhere(btn.dataset.itemId);
+      if (item) { item.done = true; save(); renderToday(); }
+    }
+    return;
+  }
+
+  if (quick === 'postpone') {
+    const choice = prompt('Seinka til: skrifaðu dagsetningu (dd.mm.áááá) eða dagafjölda (t.d. 1 = á morgun, 7 = í næstu viku)');
+    if (!choice) return;
+    let newDate = null;
+    // If number, add days from today
+    if (/^\d+$/.test(choice.trim())) {
+      const d = new Date();
+      d.setDate(d.getDate() + parseInt(choice, 10));
+      newDate = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+    } else {
+      const parsed = parseFlexibleDate(choice);
+      if (!parsed) { alert('Ógild dagsetning'); return; }
+      newDate = formatDateStr(choice);
+    }
+
+    if (kind === 'event-task') {
+      const ev = state.events.find(e => e.id === btn.dataset.eventId);
+      const task = ev?.tasks.find(t => t.id === btn.dataset.taskId);
+      if (task) { task.due_date = newDate; save(); renderToday(); }
+    } else if (kind === 'party-item') {
+      const item = findPartyItemAnywhere(btn.dataset.itemId);
+      if (item) { item.pickup_date = newDate; save(); renderToday(); }
+    } else if (kind === 'training') {
+      const emp = findEmp(btn.dataset.empId);
+      const a = emp?.training.find(x => x.id === btn.dataset.assignmentId);
+      if (a) { a.deadline = newDate; save(); renderToday(); }
+    }
+  }
+}
+
+function findPartyItemAnywhere(itemId) {
+  for (const ev of state.events || []) {
+    const found = findPartyItemInCategories(ev.budget_categories || [], itemId);
+    if (found) return found;
+  }
+  return null;
+}
+function findPartyItemInCategories(cats, itemId) {
+  for (const c of cats) {
+    const f = c.items.find(i => i.id === itemId);
+    if (f) return f;
+    const sub = findPartyItemInCategories(c.subcategories || [], itemId);
+    if (sub) return sub;
+  }
+  return null;
 }
 
 function buildUpcomingBlock(now, todayIso) {
