@@ -25,7 +25,7 @@ let saveTimer = null;
 // (e.g. 'https://hr-app-share.<subdomain>.workers.dev').
 // While empty, share links still generate but won't sync back — the
 // app runs standalone off localStorage.
-const WORKER_URL = '';
+const WORKER_URL = 'https://hr-app-share.elvar-daa.workers.dev';
 
 const POLL_INTERVAL_MS = 15_000;
 const pollTimers = new Map();
