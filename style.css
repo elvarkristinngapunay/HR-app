@@ -2577,6 +2577,90 @@ body { display: flex; flex-direction: column; }
 .chk-share-items li.indent-2 { padding-left: 74px; }
 .chk-share-items li.indent-3 { padding-left: 106px; }
 
+/* Send-invites modal */
+.send-invites-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.send-invites-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 13px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+}
+.send-invite-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.send-invite-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+.send-invite-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.send-invite-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.send-invite-contact {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.send-invite-chip {
+  font-size: 11.5px;
+  color: var(--text-2);
+  background: var(--surface-2);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.send-invite-missing {
+  font-size: 11.5px;
+  color: var(--danger);
+  font-style: italic;
+}
+.send-invite-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.send-invite-actions .btn.small {
+  padding: 6px 10px;
+  font-size: 12.5px;
+  border-radius: 8px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+.send-invites-footer {
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
 .invite-footer {
   text-align: center;
   color: var(--text-3);

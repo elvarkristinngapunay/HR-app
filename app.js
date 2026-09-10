@@ -2793,8 +2793,9 @@ function initEvents() {
     searchInput.focus();
   });
 
-  // Copy invite link
-  document.getElementById('copy-invite-btn').addEventListener('click', copyInviteText);
+  // Send invites — opens per-guest send modal
+  document.getElementById('send-invites-btn').addEventListener('click', openSendInvitesModal);
+  document.getElementById('copy-generic-invite-btn').addEventListener('click', copyInviteText);
 
   // Sub-tabs inside event modal
   document.querySelectorAll('[data-event-tab]').forEach(b => {
@@ -3272,7 +3273,93 @@ function copyInviteText() {
   if (description) parts.push('', description);
   parts.push('', 'Ýttu á tengilinn til að láta okkur vita hvort þú kemur:', inviteUrl);
   const text = parts.join('\n');
-  navigator.clipboard.writeText(text).then(() => showToast('Boðslink afritaður!')).catch(() => showToast('Náði ekki að afrita'));
+  navigator.clipboard.writeText(text).then(() => showToast('Almennur boðslink afritaður!')).catch(() => showToast('Náði ekki að afrita'));
+}
+
+// Build a personal invite URL that has the guest's id + name baked in,
+// so the public page can greet them directly and skip the "hver ert þú?"
+// question.
+function buildPersonalInviteUrl(ev, guest) {
+  const payload = {
+    id: ev.id,
+    title: ev.title,
+    date: ev.date,
+    time: ev.time,
+    location: ev.location,
+    description: ev.description,
+    guestId: guest.id,
+    guestName: guest.name,
+  };
+  const encoded = base64UrlEncode(JSON.stringify(payload));
+  const base = location_.origin + location_.pathname;
+  return `${base}#invite=${encoded}`;
+}
+
+function buildInviteMessage(ev, url) {
+  const parts = [`📅 ${ev.title || 'Viðburður'}`];
+  if (ev.date) parts.push(`${ev.date}${ev.time ? ' kl. ' + ev.time : ''}`);
+  if (ev.location) parts.push(`📍 ${ev.location}`);
+  if (ev.description) parts.push('', ev.description);
+  parts.push('', 'Ýttu á tengilinn til að svara:', url);
+  return parts.join('\n');
+}
+
+function openSendInvitesModal() {
+  if (!editingEventId) {
+    showToast('Vistaðu viðburðinn fyrst svo hægt sé að taka á móti svörum');
+    return;
+  }
+  const ev = state.events.find(x => x.id === editingEventId);
+  if (!ev) return;
+  renderSendInvitesList(ev);
+  document.getElementById('send-invites-modal').hidden = false;
+}
+
+function renderSendInvitesList(ev) {
+  const list = document.getElementById('send-invites-list');
+  const guestIds = [...eventDraftParticipants];
+  if (!guestIds.length) {
+    list.innerHTML = '<li class="send-invites-empty">Engir gestir skráðir enn. Bættu við gestum áðan.</li>';
+    return;
+  }
+  list.innerHTML = guestIds.map(id => {
+    const emp = state.employees.find(e => e.id === id);
+    if (!emp) return '';
+    const url = buildPersonalInviteUrl(ev, emp);
+    const message = buildInviteMessage(ev, url);
+    const subject = `Boð: ${ev.title || 'Viðburður'}`;
+    const hasEmail = !!emp.email;
+    const hasPhone = !!emp.phone;
+    return `
+      <li class="send-invite-row" data-guest-id="${emp.id}">
+        <div class="send-invite-main">
+          <span class="chip-avatar" style="background:${emp.avatar_color}">${initials(emp.name)}</span>
+          <div class="send-invite-info">
+            <div class="send-invite-name">${escapeHtml(emp.name)}</div>
+            <div class="send-invite-contact">
+              ${hasEmail ? `<span class="send-invite-chip">📧 ${escapeHtml(emp.email)}</span>` : ''}
+              ${hasPhone ? `<span class="send-invite-chip">📱 ${escapeHtml(emp.phone)}</span>` : ''}
+              ${!hasEmail && !hasPhone ? '<span class="send-invite-missing">Vantar email / síma</span>' : ''}
+            </div>
+          </div>
+        </div>
+        <div class="send-invite-actions">
+          ${hasEmail ? `<a class="btn small" href="mailto:${encodeURIComponent(emp.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}">📧 Póstur</a>` : ''}
+          ${hasPhone ? `<a class="btn small" href="sms:${encodeURIComponent(emp.phone)}&body=${encodeURIComponent(message)}">💬 SMS</a>` : ''}
+          <button type="button" class="btn small ghost" data-copy-url="${escapeHtml(url)}">🔗 Afrita</button>
+        </div>
+      </li>
+    `;
+  }).join('');
+
+  list.querySelectorAll('[data-copy-url]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const url = btn.dataset.copyUrl;
+      navigator.clipboard.writeText(url)
+        .then(() => showToast('Link afritaður!'))
+        .catch(() => showToast('Náði ekki að afrita'));
+    });
+  });
 }
 
 // window.location has a `location` property that would shadow inside this
@@ -3320,7 +3407,11 @@ function showInvitePage(payload) {
 function renderInviteForm(payload, storageKey) {
   const card = document.getElementById('invite-card');
   const dateStr = formatInviteDate(payload.date);
+  const personal = payload.guestId && payload.guestName;
   const hasList = Array.isArray(payload.guests) && payload.guests.length > 0;
+  const greeting = personal
+    ? `Hæ ${escapeHtml(payload.guestName.split(' ')[0])}, getur þú mætt?`
+    : 'Getur þú mætt?';
   card.innerHTML = `
     <div class="invite-icon">📅</div>
     <h1 class="invite-title">${escapeHtml(payload.title)}</h1>
@@ -3329,16 +3420,16 @@ function renderInviteForm(payload, storageKey) {
       ${payload.location ? `<span class="invite-meta-row"><span class="invite-meta-icon">📍</span> ${escapeHtml(payload.location)}</span>` : ''}
     </div>
     ${payload.description ? `<div class="invite-description">${escapeHtml(payload.description)}</div>` : ''}
-    <div class="invite-question">Hver ert þú?</div>
-    ${hasList
-      ? `<select class="invite-name-input" id="invite-guest-select">
-           <option value="">— veldu nafn —</option>
-           ${payload.guests.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join('')}
-           <option value="__other__">Ég er ekki á listanum</option>
-         </select>
-         <input class="invite-name-input" id="invite-name" placeholder="Skrifaðu nafn þitt" hidden />`
-      : `<input class="invite-name-input" id="invite-name" placeholder="Þitt nafn" />`}
-    <div class="invite-question">Getur þú mætt?</div>
+    ${!personal ? `<div class="invite-question">Hver ert þú?</div>
+      ${hasList
+        ? `<select class="invite-name-input" id="invite-guest-select">
+             <option value="">— veldu nafn —</option>
+             ${payload.guests.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join('')}
+             <option value="__other__">Ég er ekki á listanum</option>
+           </select>
+           <input class="invite-name-input" id="invite-name" placeholder="Skrifaðu nafn þitt" hidden />`
+        : `<input class="invite-name-input" id="invite-name" placeholder="Þitt nafn" />`}` : ''}
+    <div class="invite-question">${greeting}</div>
     <div class="invite-rsvp-buttons">
       <button type="button" class="invite-rsvp-btn yes" data-rsvp="yes">
         <span class="emoji">✅</span>
@@ -3369,7 +3460,10 @@ function renderInviteForm(payload, storageKey) {
       const rsvp = btn.dataset.rsvp;
       let guestId = '';
       let name = '';
-      if (sel) {
+      if (personal) {
+        guestId = payload.guestId;
+        name = payload.guestName;
+      } else if (sel) {
         if (sel.value === '__other__') {
           name = document.getElementById('invite-name').value.trim();
           if (!name) { showToast('Skrifaðu nafn þitt fyrst'); return; }

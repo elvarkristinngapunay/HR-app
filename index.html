@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=43" />
+<link rel="stylesheet" href="style.css?v=44" />
 </head>
 <body>
   <button type="button" class="sidebar-toggle" id="sidebar-toggle" title="Fela / sýna hliðardálk">
@@ -421,7 +421,7 @@
               <div class="stat-tile stat-maybe"><div class="stat-num" id="stat-maybe">0</div><div class="stat-label">Kannski</div></div>
               <div class="stat-tile stat-pending"><div class="stat-num" id="stat-pending">0</div><div class="stat-label">Ekki svarað</div></div>
             </div>
-            <button type="button" class="btn" id="copy-invite-btn">🔗 Afrita boðslink</button>
+            <button type="button" class="btn" id="send-invites-btn">📤 Senda boð</button>
           </div>
 
           <div class="participant-picker">
@@ -762,6 +762,27 @@
     </div>
   </div>
 
+  <!-- Send invites modal -->
+  <div class="modal" id="send-invites-modal" hidden>
+    <div class="modal-scrim" data-close-modal></div>
+    <div class="modal-card" style="width:640px; max-height:80vh; display:flex; flex-direction:column;">
+      <header class="modal-header">
+        <div>
+          <h2>Senda boð</h2>
+          <p class="subtle">Hver gestur fær sinn eigin link — nafnið er þegar valið þegar þeir opna hann.</p>
+        </div>
+        <button class="icon-btn" data-close-modal title="Loka">✕</button>
+      </header>
+      <div class="modal-body" style="overflow-y:auto;">
+        <ul class="send-invites-list" id="send-invites-list"></ul>
+        <div class="send-invites-footer">
+          <button type="button" class="btn ghost" id="copy-generic-invite-btn">🔗 Afrita almennan link (án nafns)</button>
+          <span class="field-hint">Notaðu ef þú þarft að deila í hóp þar sem viðtakandi er ekki þekktur.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Public RSVP page (shown when URL is #invite=…) -->
   <div class="invite-page" id="invite-page" hidden>
     <main class="invite-card" id="invite-card">
@@ -769,6 +790,6 @@
     </main>
   </div>
 
-  <script src="app.js?v=43"></script>
+  <script src="app.js?v=44"></script>
 </body>
 </html>
