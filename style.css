@@ -1867,8 +1867,17 @@ body { display: flex; flex-direction: column; }
 }
 .guest-row:hover { background: var(--surface-2); }
 .guest-row .chip-avatar { width: 28px; height: 28px; font-size: 11px; }
-.guest-name { flex: 1; font-size: 13.5px; color: var(--text); }
+.guest-name { flex: 1; font-size: 13.5px; color: var(--text); display: flex; flex-direction: column; gap: 2px; }
 .guest-name.external::after { content: " (ytri)"; color: var(--text-3); font-size: 11px; font-weight: 500; }
+.guest-comment {
+  font-size: 11.5px;
+  color: var(--text-2);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 320px;
+}
 .rsvp-toggle {
   display: flex;
   gap: 2px;
@@ -2484,6 +2493,89 @@ body { display: flex; flex-direction: column; }
 .invite-rsvp-btn.yes:hover { border-color: var(--success); background: rgba(16, 185, 129, 0.04); }
 .invite-rsvp-btn.no:hover { border-color: var(--danger); background: rgba(225, 29, 72, 0.04); }
 .invite-rsvp-btn.maybe:hover { border-color: #d97706; background: rgba(245, 158, 11, 0.06); }
+
+.invite-comment {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 14px;
+  outline: none;
+  color: var(--text);
+  background: var(--surface-2);
+  margin-bottom: 12px;
+  resize: vertical;
+  font-family: inherit;
+  min-height: 60px;
+  transition: border-color .15s, background-color .15s;
+}
+.invite-comment:focus { border-color: var(--primary); background: white; }
+
+/* Public checklist share page */
+.chk-share-progress {
+  margin: 8px 0 16px;
+}
+.chk-share-bar {
+  height: 8px;
+  background: var(--surface-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.chk-share-fill {
+  height: 100%;
+  background: var(--success);
+  border-radius: 999px;
+  transition: width .3s;
+}
+.chk-share-progress-text {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+  text-align: center;
+}
+.chk-share-items {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.chk-share-items li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background-color .12s;
+}
+.chk-share-items li:last-child { border-bottom: none; }
+.chk-share-items li:hover { background: var(--surface-2); }
+.chk-share-items li.done { background: rgba(16, 185, 129, 0.06); }
+.chk-share-items li.done .title { text-decoration: line-through; color: var(--text-3); }
+.chk-share-items .check {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--border-strong);
+  border-radius: 6px;
+  flex: 0 0 22px;
+  position: relative;
+  transition: border-color .15s, background-color .15s;
+}
+.chk-share-items li:hover .check { border-color: var(--success); }
+.chk-share-items li.done .check {
+  background: var(--success);
+  border-color: var(--success);
+}
+.chk-share-items li.done .check::after {
+  content: '✓'; color: white; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%); font-size: 13px; font-weight: 700;
+}
+.chk-share-items .title { font-size: 14px; color: var(--text); }
+.chk-share-items li.indent-1 { padding-left: 42px; }
+.chk-share-items li.indent-2 { padding-left: 74px; }
+.chk-share-items li.indent-3 { padding-left: 106px; }
 
 .invite-footer {
   text-align: center;

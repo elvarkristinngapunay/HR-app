@@ -16,6 +16,45 @@ let selectedId = null;
 let zoom = 1;
 let saveTimer = null;
 
+// ---------- Firebase glue (public share endpoints only) ----------
+// Firebase is loaded from index.html as an ES module and stashed on
+// window.HR_FB. We keep a tiny facade so the rest of app.js can call
+// fbSet / fbSubscribeDoc / fbSubscribeCollection without caring whether
+// Firebase is ready yet, and everything is a no-op if init failed.
+let HR_FB = window.HR_FB || null;
+const fbSubscriptions = new Map();
+function whenFB(cb) {
+  if (HR_FB) return cb(HR_FB);
+  window.addEventListener('hr-fb-ready', () => { HR_FB = window.HR_FB; if (HR_FB) cb(HR_FB); }, { once: true });
+}
+function fbSet(pathParts, data) {
+  whenFB(({ db, doc, setDoc }) => {
+    setDoc(doc(db, ...pathParts), data, { merge: true })
+      .catch(err => console.warn('fbSet failed', pathParts, err));
+  });
+}
+function fbSubscribeDoc(pathParts, key, cb) {
+  const prev = fbSubscriptions.get(key);
+  if (prev) prev();
+  whenFB(({ db, doc, onSnapshot }) => {
+    const unsub = onSnapshot(doc(db, ...pathParts), snap => cb(snap.exists() ? snap.data() : null),
+      err => console.warn('fb doc sub failed', pathParts, err));
+    fbSubscriptions.set(key, unsub);
+  });
+}
+function fbSubscribeCollection(pathParts, key, cb) {
+  const prev = fbSubscriptions.get(key);
+  if (prev) prev();
+  whenFB(({ db, collection, onSnapshot }) => {
+    const unsub = onSnapshot(collection(db, ...pathParts), snap => {
+      const map = {};
+      snap.forEach(d => { map[d.id] = d.data(); });
+      cb(map);
+    }, err => console.warn('fb col sub failed', pathParts, err));
+    fbSubscriptions.set(key, unsub);
+  });
+}
+
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -1524,6 +1563,7 @@ function init() {
 
   // Training detail remove
   document.getElementById('training-detail-remove-btn').addEventListener('click', removeTrainingAssignment);
+  document.getElementById('training-detail-share-btn').addEventListener('click', shareTrainingChecklist);
 
   // Sidebar toggle (Claude-style)
   const SIDEBAR_KEY = 'hr-app.sidebar-collapsed';
@@ -1556,6 +1596,73 @@ function init() {
   initEvents();
   initScratch();
   initItemSheet();
+
+  subscribeAllRemoteShares();
+}
+
+// Subscribe to Firestore for every existing event and training assignment
+// so incoming RSVPs and progress updates land in state automatically.
+function subscribeAllRemoteShares() {
+  state.events.forEach(subscribeEventRsvps);
+  state.employees.forEach(emp => {
+    (emp.training || []).forEach(a => subscribeTrainingShare(emp.id, a.id));
+  });
+}
+
+function subscribeEventRsvps(ev) {
+  fbSubscribeCollection(['event_rsvps', ev.id, 'guests'], 'event_' + ev.id, map => {
+    let changed = false;
+    ev.rsvps = ev.rsvps || {};
+    ev.rsvp_details = ev.rsvp_details || {};
+    Object.entries(map).forEach(([guestId, data]) => {
+      if (ev.rsvps[guestId] !== data.rsvp) {
+        ev.rsvps[guestId] = data.rsvp;
+        changed = true;
+      }
+      ev.rsvp_details[guestId] = { name: data.name || '', comment: data.comment || '', at: data.at || '' };
+      if (guestId.startsWith('ext_')) {
+        ev.external_guests = ev.external_guests || [];
+        if (!ev.external_guests.find(g => g.id === guestId)) {
+          ev.external_guests.push({ id: guestId, name: data.name || '(nafnlaus)' });
+          changed = true;
+        }
+      }
+    });
+    if (changed) {
+      save();
+      if (editingEventId === ev.id && !document.getElementById('event-modal').hidden) {
+        eventDraftRsvps = { ...ev.rsvps };
+        eventDraftExternalGuests = (ev.external_guests || []).map(g => ({ ...g }));
+        refreshEventParticipantUI();
+      }
+      renderEvents();
+      if (typeof renderToday === 'function') renderToday();
+    }
+  });
+}
+
+function subscribeTrainingShare(empId, assignmentId) {
+  fbSubscribeDoc(['training_shares', assignmentId], 'share_' + assignmentId, data => {
+    if (!data) return;
+    const emp = state.employees.find(e => e.id === empId);
+    if (!emp) return;
+    const a = (emp.training || []).find(x => x.id === assignmentId);
+    if (!a) return;
+    const remote = new Set(data.done_items || []);
+    const local = new Set(a.done_items || []);
+    // Merge: union of local + remote. Remote is authoritative for what's
+    // checked once someone starts responding; HR's manual checks stay.
+    remote.forEach(x => local.add(x));
+    if (local.size !== (a.done_items || []).length || [...local].some(x => !(a.done_items || []).includes(x))) {
+      a.done_items = [...local];
+      save();
+      renderTraining();
+      if (!document.getElementById('training-detail-modal').hidden && detailAssignmentId === a.id) {
+        renderTrainingDetail();
+      }
+      if (typeof renderToday === 'function') renderToday();
+    }
+  });
 }
 
 // ---------- Sections (Allir / Viðburðir / Skjal) ----------
@@ -2408,13 +2515,15 @@ function saveAssignTraining() {
   if (emp.training.some(a => a.checklist_id === clId)) {
     if (!confirm('Þessi tékklisti er þegar úthlutaður. Bæta við nýrri úthlutun samt?')) return;
   }
-  emp.training.push({
+  const newAssignment = {
     id: 'a_' + Math.random().toString(36).slice(2, 10),
     checklist_id: clId,
     assigned_at: new Date().toISOString(),
     deadline: deadline || null,
     done_items: [],
-  });
+  };
+  emp.training.push(newAssignment);
+  subscribeTrainingShare(emp.id, newAssignment.id);
   save();
   document.getElementById('assign-training-modal').hidden = true;
   renderTraining();
@@ -2461,10 +2570,49 @@ function renderTrainingDetail() {
       if (done.has(itemId)) done.delete(itemId); else done.add(itemId);
       a.done_items = [...done];
       save();
+      fbSet(['training_shares', a.id], {
+        done_items: a.done_items,
+        updated_at: new Date().toISOString(),
+      });
       renderTrainingDetail();
       renderTraining();
     });
   });
+}
+
+function shareTrainingChecklist() {
+  const emp = findEmp(detailEmpId);
+  if (!emp) return;
+  const a = (emp.training || []).find(x => x.id === detailAssignmentId);
+  if (!a) return;
+  const cl = findChecklist(a.checklist_id);
+  if (!cl) return;
+  const payload = {
+    id: a.id,
+    empName: emp.name,
+    checklistName: cl.name,
+    checklistDescription: cl.description || '',
+    deadline: a.deadline || '',
+    items: cl.items.map(i => ({ id: i.id, title: i.title, indent: i.indent || 0 })),
+  };
+  const encoded = base64UrlEncode(JSON.stringify(payload));
+  const base = location_.origin + location_.pathname;
+  const url = `${base}#chklist=${encoded}`;
+  // Seed Firestore with the current state so HR's existing check-marks
+  // are visible to the recipient the first time they open the link.
+  fbSet(['training_shares', a.id], {
+    done_items: a.done_items || [],
+    updated_at: new Date().toISOString(),
+  });
+  const lines = [
+    `🎓 ${cl.name}`,
+    emp.name,
+  ];
+  if (a.deadline) lines.push(`Frestur: ${a.deadline}`);
+  lines.push('', 'Þjálfunarlisti — merktu atriðin þegar þau eru búin:', url);
+  navigator.clipboard.writeText(lines.join('\n'))
+    .then(() => showToast('Þjálfunarlink afritaður!'))
+    .catch(() => showToast('Náði ekki að afrita'));
 }
 
 function removeTrainingAssignment() {
@@ -3014,6 +3162,8 @@ function updateGuestStats() {
 }
 
 function renderGuests() {
+  const ev = state.events.find(e => e.id === editingEventId);
+  const details = ev?.rsvp_details || {};
   const list = document.getElementById('guests-list');
   list.innerHTML = eventDraftParticipants.map(id => {
     const e = findEmp(id);
@@ -3024,6 +3174,7 @@ function renderGuests() {
       name: e.name,
       color: e.avatar_color,
       rsvp,
+      comment: details[id]?.comment || '',
       external: false,
     });
   }).join('') || '<p class="field-hint" style="padding: 8px 0;">Engir starfsmenn skráðir. Notaðu "Velja alla" eða bættu einstökum við.</p>';
@@ -3033,16 +3184,17 @@ function renderGuests() {
     id: g.id,
     name: g.name,
     color: '#94a3b8',
-    rsvp: g.rsvp || '',
+    rsvp: g.rsvp || eventDraftRsvps[g.id] || '',
+    comment: details[g.id]?.comment || '',
     external: true,
   })).join('');
 }
 
-function renderGuestRow({ id, name, color, rsvp, external }) {
+function renderGuestRow({ id, name, color, rsvp, comment, external }) {
   return `
-    <li class="guest-row" data-guest-id="${id}" data-external="${external ? 1 : 0}">
+    <li class="guest-row ${comment ? 'has-comment' : ''}" data-guest-id="${id}" data-external="${external ? 1 : 0}">
       <span class="chip-avatar" style="background:${color}">${initials(name)}</span>
-      <span class="guest-name ${external ? 'external' : ''}">${escapeHtml(name)}</span>
+      <span class="guest-name ${external ? 'external' : ''}">${escapeHtml(name)}${comment ? `<span class="guest-comment" title="${escapeHtml(comment)}">💬 ${escapeHtml(comment)}</span>` : ''}</span>
       <div class="rsvp-toggle">
         <button type="button" class="rsvp-btn ${rsvp === 'yes' ? 'active' : ''}" data-rsvp="yes" title="Mætir">✓ Mætir</button>
         <button type="button" class="rsvp-btn ${rsvp === 'maybe' ? 'active' : ''}" data-rsvp="maybe" title="Kannski">? Kannski</button>
@@ -3054,15 +3206,25 @@ function renderGuestRow({ id, name, color, rsvp, external }) {
 }
 
 function copyInviteText() {
+  if (!editingEventId) {
+    showToast('Vistaðu viðburðinn fyrst svo hægt sé að taka á móti svörum');
+    return;
+  }
   const title = document.getElementById('event-title').value.trim() || 'Viðburður';
   const date = document.getElementById('event-date').value.trim();
   const time = document.getElementById('event-time').value;
   const location = document.getElementById('event-location').value.trim();
   const description = document.getElementById('event-description').value.trim();
 
+  const guests = eventDraftParticipants.map(id => {
+    const e = state.employees.find(x => x.id === id);
+    return { id, name: e?.name || '?' };
+  });
+
   const payload = {
-    id: editingEventId || 'draft',
+    id: editingEventId,
     title, date, time, location, description,
+    guests,
   };
   const encoded = base64UrlEncode(JSON.stringify(payload));
   const base = location_.origin + location_.pathname;
@@ -3122,6 +3284,7 @@ function showInvitePage(payload) {
 function renderInviteForm(payload, storageKey) {
   const card = document.getElementById('invite-card');
   const dateStr = formatInviteDate(payload.date);
+  const hasList = Array.isArray(payload.guests) && payload.guests.length > 0;
   card.innerHTML = `
     <div class="invite-icon">📅</div>
     <h1 class="invite-title">${escapeHtml(payload.title)}</h1>
@@ -3130,8 +3293,16 @@ function renderInviteForm(payload, storageKey) {
       ${payload.location ? `<span class="invite-meta-row"><span class="invite-meta-icon">📍</span> ${escapeHtml(payload.location)}</span>` : ''}
     </div>
     ${payload.description ? `<div class="invite-description">${escapeHtml(payload.description)}</div>` : ''}
+    <div class="invite-question">Hver ert þú?</div>
+    ${hasList
+      ? `<select class="invite-name-input" id="invite-guest-select">
+           <option value="">— veldu nafn —</option>
+           ${payload.guests.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join('')}
+           <option value="__other__">Ég er ekki á listanum</option>
+         </select>
+         <input class="invite-name-input" id="invite-name" placeholder="Skrifaðu nafn þitt" hidden />`
+      : `<input class="invite-name-input" id="invite-name" placeholder="Þitt nafn" />`}
     <div class="invite-question">Getur þú mætt?</div>
-    <input class="invite-name-input" id="invite-name" placeholder="Þitt nafn (valfrjálst)" />
     <div class="invite-rsvp-buttons">
       <button type="button" class="invite-rsvp-btn yes" data-rsvp="yes">
         <span class="emoji">✅</span>
@@ -3146,15 +3317,46 @@ function renderInviteForm(payload, storageKey) {
         <span>Nei</span>
       </button>
     </div>
+    <textarea class="invite-comment" id="invite-comment" rows="3" placeholder="Útskýring á svarinu (valfrjálst)"></textarea>
     <p class="invite-footer">Svarið er sent til gestgjafans sjálfkrafa.</p>
   `;
+  const sel = document.getElementById('invite-guest-select');
+  if (sel) {
+    sel.addEventListener('change', () => {
+      const nameInput = document.getElementById('invite-name');
+      if (sel.value === '__other__') { nameInput.hidden = false; nameInput.focus(); }
+      else { nameInput.hidden = true; nameInput.value = ''; }
+    });
+  }
   card.querySelectorAll('[data-rsvp]').forEach(btn => {
     btn.addEventListener('click', () => {
       const rsvp = btn.dataset.rsvp;
-      const name = document.getElementById('invite-name').value.trim();
-      const response = { rsvp, name, at: new Date().toISOString() };
+      let guestId = '';
+      let name = '';
+      if (sel) {
+        if (sel.value === '__other__') {
+          name = document.getElementById('invite-name').value.trim();
+          if (!name) { showToast('Skrifaðu nafn þitt fyrst'); return; }
+          guestId = 'ext_' + Math.random().toString(36).slice(2, 10);
+        } else if (sel.value) {
+          guestId = sel.value;
+          name = payload.guests.find(g => g.id === sel.value)?.name || '';
+        } else {
+          showToast('Veldu nafn af listanum'); return;
+        }
+      } else {
+        name = (document.getElementById('invite-name').value || '').trim();
+        if (!name) { showToast('Skrifaðu nafn þitt fyrst'); return; }
+        guestId = 'ext_' + Math.random().toString(36).slice(2, 10);
+      }
+      const comment = document.getElementById('invite-comment').value.trim();
+      const response = { rsvp, name, comment, guestId, at: new Date().toISOString() };
       try { localStorage.setItem(storageKey, JSON.stringify(response)); } catch (_) {}
-      // TODO: When Firebase is enabled, also push to firestore /invite_responses/{eventId}/{token}
+      if (payload.id) {
+        fbSet(['event_rsvps', payload.id, 'guests', guestId], {
+          rsvp, name, comment, at: response.at,
+        });
+      }
       renderInviteConfirmation(payload, response, storageKey);
     });
   });
@@ -3182,6 +3384,71 @@ function renderInviteConfirmation(payload, response, storageKey) {
   document.getElementById('invite-change').addEventListener('click', () => {
     try { localStorage.removeItem(storageKey); } catch (_) {}
     renderInviteForm(payload, storageKey);
+  });
+}
+
+// ---------- Public checklist share view ----------
+function maybeRenderChecklistPage() {
+  const hash = window.location.hash || '';
+  const m = hash.match(/^#chklist=(.+)$/);
+  if (!m) return false;
+  let payload;
+  try { payload = JSON.parse(base64UrlDecode(m[1])); }
+  catch (_) { return false; }
+  showChecklistPage(payload);
+  return true;
+}
+
+function showChecklistPage(payload) {
+  document.querySelector('.app').style.display = 'none';
+  document.getElementById('invite-page').hidden = false;
+  document.title = `${payload.checklistName} — Þjálfun`;
+  renderChecklistPage(payload, new Set());
+  fbSubscribeDoc(['training_shares', payload.id], 'share_' + payload.id, data => {
+    const doneSet = new Set(data?.done_items || []);
+    renderChecklistPage(payload, doneSet);
+  });
+}
+
+function renderChecklistPage(payload, doneSet) {
+  const card = document.getElementById('invite-card');
+  const total = payload.items.length;
+  const done = payload.items.filter(i => doneSet.has(i.id)).length;
+  const pct = total ? Math.round(done / total * 100) : 0;
+  const deadlineStr = payload.deadline ? formatInviteDate(payload.deadline) : '';
+  card.innerHTML = `
+    <div class="invite-icon">🎓</div>
+    <h1 class="invite-title">${escapeHtml(payload.checklistName)}</h1>
+    <div class="invite-meta">
+      <span class="invite-meta-row"><span class="invite-meta-icon">👤</span> ${escapeHtml(payload.empName)}</span>
+      ${deadlineStr ? `<span class="invite-meta-row"><span class="invite-meta-icon">🗓</span> Frestur: ${escapeHtml(deadlineStr)}</span>` : ''}
+    </div>
+    ${payload.checklistDescription ? `<div class="invite-description">${escapeHtml(payload.checklistDescription)}</div>` : ''}
+    <div class="chk-share-progress">
+      <div class="chk-share-bar"><div class="chk-share-fill" style="width:${pct}%"></div></div>
+      <div class="chk-share-progress-text">${done} af ${total} · ${pct}%</div>
+    </div>
+    <ul class="chk-share-items">
+      ${payload.items.map(i => `
+        <li class="indent-${Math.max(0, Math.min(3, i.indent || 0))} ${doneSet.has(i.id) ? 'done' : ''}" data-item-id="${i.id}">
+          <span class="check"></span>
+          <span class="title">${escapeHtml(i.title)}</span>
+        </li>
+      `).join('')}
+    </ul>
+    <p class="invite-footer">Merktu atriðin þegar þau eru búin. Mannauðsstjóri sér framvinduna sjálfkrafa.</p>
+  `;
+  card.querySelectorAll('[data-item-id]').forEach(li => {
+    li.addEventListener('click', () => {
+      const itemId = li.dataset.itemId;
+      const next = new Set(doneSet);
+      if (next.has(itemId)) next.delete(itemId); else next.add(itemId);
+      fbSet(['training_shares', payload.id], {
+        done_items: [...next],
+        updated_at: new Date().toISOString(),
+      });
+      renderChecklistPage(payload, next);
+    });
   });
 }
 
@@ -3795,7 +4062,10 @@ function saveEventFromForm() {
   ev.budget = eventDraftBudget;
   ev.budget_categories = eventDraftBudgetCategories.map(c => ({ ...c, items: c.items.map(i => ({ ...i })) })); delete ev.budget_items;
   ev.timeline_items = eventDraftTimeline.map(t => ({ ...t }));
-  if (!editingEventId) state.events.push(ev);
+  if (!editingEventId) {
+    state.events.push(ev);
+    subscribeEventRsvps(ev);
+  }
   save();
   closeModal('event-modal');
   renderEvents();
@@ -4100,10 +4370,12 @@ scanReminders = function () {
 
 document.addEventListener('DOMContentLoaded', () => {
   if (maybeRenderInvitePage()) return;
+  if (maybeRenderChecklistPage()) return;
   init();
 });
 window.addEventListener('hashchange', () => {
-  if (window.location.hash.startsWith('#invite=')) {
+  const h = window.location.hash || '';
+  if (h.startsWith('#invite=') || h.startsWith('#chklist=')) {
     location.reload();
   }
 });
