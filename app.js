@@ -16,43 +16,78 @@ let selectedId = null;
 let zoom = 1;
 let saveTimer = null;
 
-// ---------- Firebase glue (public share endpoints only) ----------
-// Firebase is loaded from index.html as an ES module and stashed on
-// window.HR_FB. We keep a tiny facade so the rest of app.js can call
-// fbSet / fbSubscribeDoc / fbSubscribeCollection without caring whether
-// Firebase is ready yet, and everything is a no-op if init failed.
-let HR_FB = window.HR_FB || null;
-const fbSubscriptions = new Map();
-function whenFB(cb) {
-  if (HR_FB) return cb(HR_FB);
-  window.addEventListener('hr-fb-ready', () => { HR_FB = window.HR_FB; if (HR_FB) cb(HR_FB); }, { once: true });
+// ---------- Backend glue (Cloudflare Worker for share endpoints) ----------
+// One Worker fronts KV storage for RSVPs and training-share progress.
+// Everything is best-effort — if WORKER_URL is empty or the fetch fails
+// the app keeps working locally (share links just don't sync).
+//
+// To point the app at your deployed Worker, paste the URL here
+// (e.g. 'https://hr-app-share.<subdomain>.workers.dev').
+// While empty, share links still generate but won't sync back — the
+// app runs standalone off localStorage.
+const WORKER_URL = '';
+
+const POLL_INTERVAL_MS = 15_000;
+const pollTimers = new Map();
+
+function apiUrl(path) { return WORKER_URL + path; }
+
+async function apiPost(path, body) {
+  if (!WORKER_URL) return;
+  try {
+    await fetch(apiUrl(path), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    console.warn('apiPost failed', path, err);
+  }
 }
-function fbSet(pathParts, data) {
-  whenFB(({ db, doc, setDoc }) => {
-    setDoc(doc(db, ...pathParts), data, { merge: true })
-      .catch(err => console.warn('fbSet failed', pathParts, err));
-  });
+
+async function apiGet(path) {
+  if (!WORKER_URL) return null;
+  try {
+    const r = await fetch(apiUrl(path));
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (err) {
+    console.warn('apiGet failed', path, err);
+    return null;
+  }
 }
-function fbSubscribeDoc(pathParts, key, cb) {
-  const prev = fbSubscriptions.get(key);
-  if (prev) prev();
-  whenFB(({ db, doc, onSnapshot }) => {
-    const unsub = onSnapshot(doc(db, ...pathParts), snap => cb(snap.exists() ? snap.data() : null),
-      err => console.warn('fb doc sub failed', pathParts, err));
-    fbSubscriptions.set(key, unsub);
-  });
+
+// Public API — mirrors the old fbSet / fbSubscribeDoc / fbSubscribeCollection
+// so the rest of the app can call it without knowing about HTTP.
+function shareSetRsvp(eventId, guestId, data) {
+  return apiPost(`/rsvp/${encodeURIComponent(eventId)}/${encodeURIComponent(guestId)}`, data);
 }
-function fbSubscribeCollection(pathParts, key, cb) {
-  const prev = fbSubscriptions.get(key);
-  if (prev) prev();
-  whenFB(({ db, collection, onSnapshot }) => {
-    const unsub = onSnapshot(collection(db, ...pathParts), snap => {
-      const map = {};
-      snap.forEach(d => { map[d.id] = d.data(); });
-      cb(map);
-    }, err => console.warn('fb col sub failed', pathParts, err));
-    fbSubscriptions.set(key, unsub);
-  });
+function shareGetRsvps(eventId) {
+  return apiGet(`/rsvp/${encodeURIComponent(eventId)}`);
+}
+function shareSetTraining(assignmentId, data) {
+  return apiPost(`/training/${encodeURIComponent(assignmentId)}`, data);
+}
+function shareGetTraining(assignmentId) {
+  return apiGet(`/training/${encodeURIComponent(assignmentId)}`);
+}
+
+// Poll helpers: fire cb(data) now and then every POLL_INTERVAL_MS.
+// key lets us cancel and re-register (so we don't stack timers).
+function pollLoop(key, fetcher, cb) {
+  const prev = pollTimers.get(key);
+  if (prev) clearInterval(prev);
+  const tick = async () => {
+    const data = await fetcher();
+    cb(data);
+  };
+  tick();
+  const id = setInterval(tick, POLL_INTERVAL_MS);
+  pollTimers.set(key, id);
+}
+function stopPoll(key) {
+  const t = pollTimers.get(key);
+  if (t) { clearInterval(t); pollTimers.delete(key); }
 }
 
 function load() {
@@ -1610,7 +1645,8 @@ function subscribeAllRemoteShares() {
 }
 
 function subscribeEventRsvps(ev) {
-  fbSubscribeCollection(['event_rsvps', ev.id, 'guests'], 'event_' + ev.id, map => {
+  pollLoop('event_' + ev.id, () => shareGetRsvps(ev.id), map => {
+    if (!map) return;
     let changed = false;
     ev.rsvps = ev.rsvps || {};
     ev.rsvp_details = ev.rsvp_details || {};
@@ -1642,7 +1678,7 @@ function subscribeEventRsvps(ev) {
 }
 
 function subscribeTrainingShare(empId, assignmentId) {
-  fbSubscribeDoc(['training_shares', assignmentId], 'share_' + assignmentId, data => {
+  pollLoop('share_' + assignmentId, () => shareGetTraining(assignmentId), data => {
     if (!data) return;
     const emp = state.employees.find(e => e.id === empId);
     if (!emp) return;
@@ -2570,7 +2606,7 @@ function renderTrainingDetail() {
       if (done.has(itemId)) done.delete(itemId); else done.add(itemId);
       a.done_items = [...done];
       save();
-      fbSet(['training_shares', a.id], {
+      shareSetTraining(a.id, {
         done_items: a.done_items,
         updated_at: new Date().toISOString(),
       });
@@ -2598,9 +2634,9 @@ function shareTrainingChecklist() {
   const encoded = base64UrlEncode(JSON.stringify(payload));
   const base = location_.origin + location_.pathname;
   const url = `${base}#chklist=${encoded}`;
-  // Seed Firestore with the current state so HR's existing check-marks
-  // are visible to the recipient the first time they open the link.
-  fbSet(['training_shares', a.id], {
+  // Seed the share store with the current state so HR's existing
+  // check-marks are visible to the recipient the first time they open.
+  shareSetTraining(a.id, {
     done_items: a.done_items || [],
     updated_at: new Date().toISOString(),
   });
@@ -3353,9 +3389,7 @@ function renderInviteForm(payload, storageKey) {
       const response = { rsvp, name, comment, guestId, at: new Date().toISOString() };
       try { localStorage.setItem(storageKey, JSON.stringify(response)); } catch (_) {}
       if (payload.id) {
-        fbSet(['event_rsvps', payload.id, 'guests', guestId], {
-          rsvp, name, comment, at: response.at,
-        });
+        shareSetRsvp(payload.id, guestId, { rsvp, name, comment, at: response.at });
       }
       renderInviteConfirmation(payload, response, storageKey);
     });
@@ -3404,7 +3438,7 @@ function showChecklistPage(payload) {
   document.getElementById('invite-page').hidden = false;
   document.title = `${payload.checklistName} — Þjálfun`;
   renderChecklistPage(payload, new Set());
-  fbSubscribeDoc(['training_shares', payload.id], 'share_' + payload.id, data => {
+  pollLoop('share_' + payload.id, () => shareGetTraining(payload.id), data => {
     const doneSet = new Set(data?.done_items || []);
     renderChecklistPage(payload, doneSet);
   });
@@ -3443,7 +3477,7 @@ function renderChecklistPage(payload, doneSet) {
       const itemId = li.dataset.itemId;
       const next = new Set(doneSet);
       if (next.has(itemId)) next.delete(itemId); else next.add(itemId);
-      fbSet(['training_shares', payload.id], {
+      shareSetTraining(payload.id, {
         done_items: [...next],
         updated_at: new Date().toISOString(),
       });

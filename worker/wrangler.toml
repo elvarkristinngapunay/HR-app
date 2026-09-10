@@ -1,0 +1,10 @@
+name = "hr-app-share"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+# Fill in the KV namespace id after running:
+#   npx wrangler kv namespace create HR
+# and paste the returned id below.
+[[kv_namespaces]]
+binding = "HR"
+id = "REPLACE_WITH_KV_ID"
