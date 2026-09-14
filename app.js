@@ -1743,6 +1743,26 @@ function switchSection(name) {
 }
 
 // ---------- Í dag (home dashboard) ----------
+
+// state.hiddenToday = { 'YYYY-MM-DD': ['hide-id', ...] } — dismissed rows.
+// The key is today's date so tomorrow the list resets on its own.
+// We prune any date older than yesterday on each render.
+function isTodayHidden(id, todayIso) {
+  const set = state.hiddenToday?.[todayIso];
+  return !!(set && set.includes(id));
+}
+function hideTodayItem(id, todayIso) {
+  if (!state.hiddenToday) state.hiddenToday = {};
+  if (!state.hiddenToday[todayIso]) state.hiddenToday[todayIso] = [];
+  if (!state.hiddenToday[todayIso].includes(id)) state.hiddenToday[todayIso].push(id);
+  // Cleanup entries from earlier days.
+  Object.keys(state.hiddenToday).forEach(k => {
+    if (k < todayIso) delete state.hiddenToday[k];
+  });
+  save();
+  renderToday();
+}
+
 function renderToday() {
   const now = new Date();
   const todayIso = now.toISOString().slice(0, 10);
@@ -1777,13 +1797,14 @@ function renderToday() {
     }).join('')));
   }
 
-  // 1b. Afmæli í þessum mánuði (except today, which is above)
+  // 1b. Afmæli í þessum mánuði (only upcoming ones — past ones this
+  // month are gone and don't need to loiter on the dashboard).
   const monthBirthdays = state.employees
     .map(e => {
       const bd = parseFlexibleDate(e.birthdate);
       if (!bd) return null;
       if (bd.getMonth() !== now.getMonth()) return null;
-      if (bd.getDate() === now.getDate()) return null; // shown in "í dag" already
+      if (bd.getDate() <= now.getDate()) return null; // today handled above; past days skipped
       return { emp: e, bd };
     })
     .filter(Boolean)
@@ -2135,13 +2156,16 @@ function buildUpcomingBlock(now, todayIso) {
     if (!ev.date_iso) return;
     if (ev.date_iso <= todayIso) return;
     if (ev.date_iso > in7iso) return;
+    const isMeeting = (ev.type || 'event') === 'meeting';
+    const typeLabel = isMeeting ? 'Fundur' : 'Viðburður';
     items.push({
       date: new Date(ev.date_iso),
       sortKey: ev.date_iso + 'T' + (ev.time || '00:00'),
-      icon: '📅',
+      icon: isMeeting ? '🤝' : '🎉',
       title: ev.title,
-      meta: (ev.time ? ev.time + ' · ' : '') + (ev.location || 'Viðburður'),
+      meta: [typeLabel, ev.time, ev.location].filter(Boolean).join(' · '),
       nav: { type: 'event', event_id: ev.id },
+      eventType: isMeeting ? 'meeting' : 'event',
     });
   });
 
@@ -2246,8 +2270,9 @@ function buildUpcomingBlock(now, todayIso) {
     const avatarHtml = x.color
       ? `<span class="today-item-avatar" style="background:${x.color}">${initials(x.title)}</span>`
       : `<span class="today-item-time no-time" style="min-width:24px;">${x.icon}</span>`;
+    const typeClass = x.eventType ? ' type-' + x.eventType : '';
     return `
-      <li class="today-item" data-nav="${type}" ${nav}>
+      <li class="today-item${typeClass}" data-nav="${type}" ${nav}>
         <span class="today-item-time">${escapeHtml(dateLabel)}</span>
         ${avatarHtml}
         <span class="today-item-title">${escapeHtml(x.title)}</span>
