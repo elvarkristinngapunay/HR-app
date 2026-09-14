@@ -1,5 +1,33 @@
+// ---------- Tenant ----------
+// Every company that uses this app gets their own link with a
+// ?t=<slug> parameter — that slug scopes localStorage, IndexedDB,
+// Worker paths and public share URLs so their data never mixes with
+// another tenant's. Fura is the default tenant so any old link that
+// forgot the parameter still resolves to Fura's data.
+const TENANT = ((new URLSearchParams(window.location.search).get('t') || 'fura')
+  .toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 40) || 'fura');
+const TENANT_LABELS = {
+  fura: 'Fura',
+};
+const TENANT_LABEL = TENANT_LABELS[TENANT] || (TENANT[0].toUpperCase() + TENANT.slice(1));
+
 // ---------- State & storage ----------
-const STORAGE_KEY = 'hr-app.v1';
+const STORAGE_KEY = 'hr-app.v1.' + TENANT;
+const IDB_DB_NAME = 'hr-app-docs-' + TENANT;
+
+// One-time migration: whoever was using the pre-tenant version had
+// their data under 'hr-app.v1'. On the first load as tenant "fura"
+// (the default), copy it into the namespaced key so nothing is lost.
+(function migrateLegacyStorage() {
+  try {
+    if (TENANT !== 'fura') return;
+    if (localStorage.getItem(STORAGE_KEY)) return;
+    const legacy = localStorage.getItem('hr-app.v1');
+    if (!legacy) return;
+    localStorage.setItem(STORAGE_KEY, legacy);
+    localStorage.removeItem('hr-app.v1');
+  } catch (_) {}
+})();
 const AVATAR_COLORS = [
   '#2563eb', '#7c3aed', '#db2777', '#ea580c', '#059669',
   '#0891b2', '#4f46e5', '#c026d3', '#dc2626', '#65a30d',
@@ -59,17 +87,19 @@ async function apiGet(path) {
 
 // Public API — mirrors the old fbSet / fbSubscribeDoc / fbSubscribeCollection
 // so the rest of the app can call it without knowing about HTTP.
+// Public share endpoints are namespaced by tenant so two customers'
+// event ids never collide in the same KV.
 function shareSetRsvp(eventId, guestId, data) {
-  return apiPost(`/rsvp/${encodeURIComponent(eventId)}/${encodeURIComponent(guestId)}`, data);
+  return apiPost(`/t/${TENANT}/rsvp/${encodeURIComponent(eventId)}/${encodeURIComponent(guestId)}`, data);
 }
 function shareGetRsvps(eventId) {
-  return apiGet(`/rsvp/${encodeURIComponent(eventId)}`);
+  return apiGet(`/t/${TENANT}/rsvp/${encodeURIComponent(eventId)}`);
 }
 function shareSetTraining(assignmentId, data) {
-  return apiPost(`/training/${encodeURIComponent(assignmentId)}`, data);
+  return apiPost(`/t/${TENANT}/training/${encodeURIComponent(assignmentId)}`, data);
 }
 function shareGetTraining(assignmentId) {
-  return apiGet(`/training/${encodeURIComponent(assignmentId)}`);
+  return apiGet(`/t/${TENANT}/training/${encodeURIComponent(assignmentId)}`);
 }
 
 // Poll helpers: fire cb(data) now and then every POLL_INTERVAL_MS.
@@ -276,6 +306,18 @@ function scheduleSave() {
 function uid() {
   return 'e_' + Math.random().toString(36).slice(2, 9);
 }
+function applyTenantBranding() {
+  const label = TENANT_LABEL;
+  const mark = label[0].toUpperCase();
+  const brandTitle = document.getElementById('brand-title');
+  const brandMark = document.getElementById('brand-mark');
+  const pageTitle = document.getElementById('page-title');
+  if (brandTitle) brandTitle.textContent = label + ' HR';
+  if (brandMark) brandMark.textContent = mark;
+  if (pageTitle) pageTitle.textContent = 'Starfsmenn — ' + label + ' HR';
+  document.title = 'Starfsmenn — ' + label + ' HR';
+}
+
 function initials(name) {
   if (!name) return '?';
   const parts = name.trim().split(/\s+/).slice(0, 2);
@@ -1013,7 +1055,7 @@ let _dbPromise = null;
 function docsDB() {
   if (_dbPromise) return _dbPromise;
   _dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open('hr-app-docs', 1);
+    const req = indexedDB.open(IDB_DB_NAME, 1);
     req.onupgradeneeded = () => {
       req.result.createObjectStore('files');
     };
@@ -1312,6 +1354,7 @@ function applyZoom() {
 
 // ---------- Event wiring ----------
 function init() {
+  applyTenantBranding();
   document.getElementById('add-employee-btn').addEventListener('click', () => addEmployee(null));
   document.getElementById('empty-add-btn').addEventListener('click', () => addEmployee(null));
   document.getElementById('drawer-close').addEventListener('click', closeDrawer);
@@ -2670,7 +2713,7 @@ function shareTrainingChecklist() {
     items: cl.items.map(i => ({ id: i.id, title: i.title, indent: i.indent || 0 })),
   };
   const encoded = base64UrlEncode(JSON.stringify(payload));
-  const base = location_.origin + location_.pathname;
+  const base = location_.origin + location_.pathname + '?t=' + encodeURIComponent(TENANT);
   const url = `${base}#chklist=${encoded}`;
   // Seed the share store with the current state so HR's existing
   // check-marks are visible to the recipient the first time they open.
@@ -3347,7 +3390,7 @@ function copyInviteText() {
     guests,
   };
   const encoded = base64UrlEncode(JSON.stringify(payload));
-  const base = location_.origin + location_.pathname;
+  const base = location_.origin + location_.pathname + '?t=' + encodeURIComponent(TENANT);
   const inviteUrl = `${base}#invite=${encoded}`;
 
   const parts = [`📅 ${title}`];
@@ -3374,7 +3417,7 @@ function buildPersonalInviteUrl(ev, guest) {
     guestName: guest.name,
   };
   const encoded = base64UrlEncode(JSON.stringify(payload));
-  const base = location_.origin + location_.pathname;
+  const base = location_.origin + location_.pathname + '?t=' + encodeURIComponent(TENANT);
   return `${base}#invite=${encoded}`;
 }
 

@@ -1,14 +1,19 @@
 // HR app share endpoints — Cloudflare Worker + KV.
 //
-// Two public paths:
-//   POST /rsvp/:eventId/:guestId      → store RSVP
-//   GET  /rsvp/:eventId               → list all RSVPs for event
-//   POST /training/:assignmentId      → store training progress
-//   GET  /training/:assignmentId      → read training progress
+// Tenant-scoped paths so multiple customers can share the same
+// Worker without their data ever colliding:
+//   POST /t/:tenant/rsvp/:eventId/:guestId      → store RSVP
+//   GET  /t/:tenant/rsvp/:eventId               → list all RSVPs for event
+//   POST /t/:tenant/training/:assignmentId      → store training progress
+//   GET  /t/:tenant/training/:assignmentId      → read training progress
 //
-// Anyone with an event id / assignment id (only whoever holds the
-// share link knows them) can read + write. There is no PII on these
-// endpoints beyond a name + a comment the recipient types in.
+// (The pre-tenant paths /rsvp/... and /training/... are kept as a
+// legacy alias — they route to the "fura" tenant for old links.)
+//
+// Anyone with an event id / assignment id can read + write on their
+// own tenant — the "secret" is the unguessable id, same threat model
+// as an unlisted GDrive link. There is no PII on these endpoints
+// beyond a name + a comment the recipient types in.
 
 const CORS = {
   'access-control-allow-origin': '*',
@@ -22,16 +27,21 @@ export default {
       return new Response(null, { headers: CORS });
     }
     const url = new URL(request.url);
-    const path = url.pathname.replace(/\/$/, '');
+    let path = url.pathname.replace(/\/$/, '');
 
-    // POST /rsvp/:eventId/:guestId
-    let m = path.match(/^\/rsvp\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)$/);
+    // Legacy alias: routes without /t/:tenant map to the fura tenant.
+    if (path.startsWith('/rsvp/') || path.startsWith('/training/')) {
+      path = '/t/fura' + path;
+    }
+
+    // POST /t/:tenant/rsvp/:eventId/:guestId
+    let m = path.match(/^\/t\/([a-z0-9_-]{1,40})\/rsvp\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)$/);
     if (m) {
-      const [, eventId, guestId] = m;
+      const [, tenant, eventId, guestId] = m;
       if (request.method === 'POST') {
         const body = await safeJson(request);
         if (!body) return err(400, 'bad json');
-        await env.HR.put(`rsvp:${eventId}:${guestId}`, JSON.stringify({
+        await env.HR.put(`t:${tenant}:rsvp:${eventId}:${guestId}`, JSON.stringify({
           rsvp: str(body.rsvp),
           name: str(body.name),
           comment: str(body.comment),
@@ -42,12 +52,12 @@ export default {
       return err(405, 'method not allowed');
     }
 
-    // GET /rsvp/:eventId
-    m = path.match(/^\/rsvp\/([A-Za-z0-9_-]+)$/);
+    // GET /t/:tenant/rsvp/:eventId
+    m = path.match(/^\/t\/([a-z0-9_-]{1,40})\/rsvp\/([A-Za-z0-9_-]+)$/);
     if (m) {
-      const [, eventId] = m;
+      const [, tenant, eventId] = m;
       if (request.method === 'GET') {
-        const prefix = `rsvp:${eventId}:`;
+        const prefix = `t:${tenant}:rsvp:${eventId}:`;
         const list = await env.HR.list({ prefix });
         const entries = await Promise.all(list.keys.map(async k => {
           const v = await env.HR.get(k.name);
@@ -61,11 +71,11 @@ export default {
       return err(405, 'method not allowed');
     }
 
-    // /training/:assignmentId  (GET or POST)
-    m = path.match(/^\/training\/([A-Za-z0-9_-]+)$/);
+    // /t/:tenant/training/:assignmentId  (GET or POST)
+    m = path.match(/^\/t\/([a-z0-9_-]{1,40})\/training\/([A-Za-z0-9_-]+)$/);
     if (m) {
-      const [, aid] = m;
-      const key = `train:${aid}`;
+      const [, tenant, aid] = m;
+      const key = `t:${tenant}:train:${aid}`;
       if (request.method === 'POST') {
         const body = await safeJson(request);
         if (!body) return err(400, 'bad json');
