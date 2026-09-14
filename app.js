@@ -125,7 +125,14 @@ function load() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw);
   } catch (_) {}
-  return seed();
+  // With cloud sync on, start empty and let the initial pull fill the
+  // state in — otherwise seeded demo data would look like real work
+  // and could overwrite the tenant's actual data on the next push.
+  return WORKER_URL ? emptyState() : seed();
+}
+
+function emptyState() {
+  return { departments: [], employees: [], events: [], scratchNotes: [], checklists: [] };
 }
 
 function seed() {
@@ -284,9 +291,99 @@ function deptName(id) { const d = findDept(id); return d ? d.name : ''; }
 function deptColor(id) { const d = findDept(id); return d ? d.color : '#94a3b8'; }
 
 function save() {
+  state.updated_at = new Date().toISOString();
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (_) {}
+  scheduleCloudPush();
+}
+
+// ---------- Cloud sync (whole-state, per tenant) ----------
+// Debounced push so a burst of edits collapses into one write. Pull
+// on load and when the tab regains focus — one HR person editing at
+// a time is the norm; if two collide the later save wins.
+let cloudPushTimer = null;
+let cloudBusy = false;
+// Wait for the first cloud pull to finish before pushing, so a fresh
+// browser doesn't overwrite the tenant's real state with local
+// bootstrap data. Set to true immediately when there's no Worker.
+let cloudPullDone = false;
+function setCloudStatus(kind, label) {
+  const el = document.getElementById('cloud-status');
+  if (!el) return;
+  el.className = 'cloud-status ' + kind;
+  el.textContent = label;
+}
+function scheduleCloudPush() {
+  if (!WORKER_URL) return;
+  if (!cloudPullDone) return; // Don't clobber remote until we've seen it
+  clearTimeout(cloudPushTimer);
+  setCloudStatus('pending', 'Bíð eftir að vista í ský…');
+  cloudPushTimer = setTimeout(pushStateToCloud, 1500);
+}
+async function pushStateToCloud() {
+  if (!WORKER_URL || cloudBusy) return;
+  cloudBusy = true;
+  setCloudStatus('syncing', 'Vista í ský…');
+  try {
+    const r = await fetch(`${WORKER_URL}/t/${TENANT}/state`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ state, updated_at: state.updated_at }),
+    });
+    setCloudStatus(r.ok ? 'ok' : 'error', r.ok ? '☁ Samstillt' : 'Villa við vistun');
+  } catch (err) {
+    setCloudStatus('error', 'Offline — geymt á tæki');
+  } finally {
+    cloudBusy = false;
+  }
+}
+async function pullStateFromCloud() {
+  if (!WORKER_URL || cloudBusy) return;
+  cloudBusy = true;
+  let cloudWasEmpty = false;
+  try {
+    const r = await fetch(`${WORKER_URL}/t/${TENANT}/state`);
+    if (r.ok) {
+      const remote = await r.json();
+      if (remote && remote.state) {
+        const remoteUpdated = remote.updated_at || remote.state.updated_at || '';
+        const localUpdated = state.updated_at || '';
+        if (remoteUpdated > localUpdated) {
+          state = migrate(remote.state);
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
+          rerenderCurrentSection();
+          setCloudStatus('ok', '☁ Uppfært frá skýi');
+        } else {
+          setCloudStatus('ok', '☁ Samstillt');
+        }
+      } else {
+        cloudWasEmpty = true;
+        setCloudStatus('ok', '☁ Nýr tenant');
+      }
+    }
+  } catch (_) {
+    setCloudStatus('error', 'Offline — geymt á tæki');
+  } finally {
+    cloudBusy = false;
+    cloudPullDone = true;
+    // Existing tenant with local data but empty cloud — most often
+    // because this was the pre-sync device — push what we have so
+    // other devices see the same thing.
+    const hasLocal = (state.employees?.length || 0) + (state.departments?.length || 0) > 0;
+    if (cloudWasEmpty && hasLocal) {
+      if (!state.updated_at) state.updated_at = new Date().toISOString();
+      pushStateToCloud();
+    }
+  }
+}
+function rerenderCurrentSection() {
+  const sec = localStorage.getItem(SECTION_KEY) || 'today';
+  if (sec === 'today') renderToday();
+  else if (sec === 'people') { renderTree(); renderPeopleList(); }
+  else if (sec === 'events') renderEvents();
+  else if (sec === 'scratch') renderScratch();
+  else if (sec === 'training') renderTraining();
 }
 
 function scheduleSave() {
@@ -4631,10 +4728,17 @@ scanReminders = function () {
   if (changed) save();
 };
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   if (maybeRenderInvitePage()) return;
   if (maybeRenderChecklistPage()) return;
   init();
+  // Kick off cloud sync in the background: pull once now, and again
+  // whenever the tab regains focus so a fresh viewer sees the current
+  // shared state instead of last-known-local.
+  pullStateFromCloud();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') pullStateFromCloud();
+  });
 });
 window.addEventListener('hashchange', () => {
   const h = window.location.hash || '';

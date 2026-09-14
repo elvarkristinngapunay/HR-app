@@ -2681,6 +2681,31 @@ body { display: flex; flex-direction: column; }
 .chk-share-items li.indent-2 { padding-left: 74px; }
 .chk-share-items li.indent-3 { padding-left: 106px; }
 
+/* Cloud sync status pill under the brand */
+.cloud-status {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-3, #71717a);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: transparent;
+  display: inline-block;
+  transition: color .2s, background .2s;
+}
+.cloud-status.syncing,
+.cloud-status.pending {
+  color: #7c3aed;
+  background: #ede9fe;
+}
+.cloud-status.ok {
+  color: #059669;
+  background: #d1fae5;
+}
+.cloud-status.error {
+  color: #b45309;
+  background: #fef3c7;
+}
+
 /* Send-invites modal */
 .send-invites-list {
   list-style: none;

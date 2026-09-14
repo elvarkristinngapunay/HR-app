@@ -71,6 +71,27 @@ export default {
       return err(405, 'method not allowed');
     }
 
+    // /t/:tenant/state  (GET or POST) — whole HR state blob for the tenant.
+    // Last-write-wins; the client stamps `updated_at` for its own compare.
+    m = path.match(/^\/t\/([a-z0-9_-]{1,40})\/state$/);
+    if (m) {
+      const [, tenant] = m;
+      const key = `t:${tenant}:state`;
+      if (request.method === 'POST') {
+        const body = await safeJson(request);
+        if (!body) return err(400, 'bad json');
+        const asStr = JSON.stringify(body);
+        if (asStr.length > 5_000_000) return err(413, 'state too large (>5MB)');
+        await env.HR.put(key, asStr);
+        return json({ ok: true });
+      }
+      if (request.method === 'GET') {
+        const v = await env.HR.get(key);
+        return json(v ? JSON.parse(v) : null);
+      }
+      return err(405, 'method not allowed');
+    }
+
     // /t/:tenant/training/:assignmentId  (GET or POST)
     m = path.match(/^\/t\/([a-z0-9_-]{1,40})\/training\/([A-Za-z0-9_-]+)$/);
     if (m) {
