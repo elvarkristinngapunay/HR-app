@@ -172,6 +172,12 @@ function migrate(s) {
     emp.manager_ids = emp.manager_ids.filter(id => validIds.has(id));
   });
   s.events = s.events || [];
+  // Every event gets a type: 'meeting' (fundur) or 'event' (viðburður).
+  // Existing untyped items default to 'event' so nothing accidentally
+  // loses its budget/planning tab.
+  s.events.forEach(ev => {
+    if (ev.type !== 'meeting' && ev.type !== 'event') ev.type = 'event';
+  });
   s.scratchNotes = s.scratchNotes || [];
   s.checklists = s.checklists || [];
   s.employees.forEach(e => { e.training = e.training || []; });
@@ -1806,18 +1812,25 @@ function renderToday() {
       }).join('')));
   }
 
-  // 2. Viðburðir í dag
-  const eventsToday = (state.events || []).filter(ev => ev.date_iso === todayIso)
+  // 2. Fundir + viðburðir í dag (split)
+  const allToday = (state.events || []).filter(ev => ev.date_iso === todayIso)
     .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-  if (eventsToday.length) {
-    blocks.push(todayBlock('📅', 'Viðburðir í dag', eventsToday.length, false,
-      eventsToday.map(ev => `
-        <li class="today-item" data-nav="event" data-event-id="${ev.id}">
+  const meetingsToday = allToday.filter(e => (e.type || 'event') === 'meeting');
+  const eventsToday = allToday.filter(e => (e.type || 'event') === 'event');
+  const renderDayItem = (ev) => `
+        <li class="today-item type-${ev.type || 'event'}" data-nav="event" data-event-id="${ev.id}">
           <span class="today-item-time ${ev.time && ev.time < now.toTimeString().slice(0, 5) ? 'past' : ''}">${ev.time || '—'}</span>
           <span class="today-item-title">${escapeHtml(ev.title)}</span>
           <span class="today-item-meta">${ev.location ? '📍 ' + escapeHtml(ev.location) : ''}</span>
         </li>
-      `).join('')));
+      `;
+  if (meetingsToday.length) {
+    blocks.push(todayBlock('🤝', 'Fundir í dag', meetingsToday.length, false,
+      meetingsToday.map(renderDayItem).join('')));
+  }
+  if (eventsToday.length) {
+    blocks.push(todayBlock('🎉', 'Viðburðir í dag', eventsToday.length, false,
+      eventsToday.map(renderDayItem).join('')));
   }
 
   // 3. Verkefni sem eiga að vera búin (from event tasks + party items pickup today or overdue)
@@ -2668,6 +2681,8 @@ function removeTrainingAssignment() {
 const MONTHS_IS = ['jan', 'feb', 'mar', 'apr', 'maí', 'jún', 'júl', 'ágú', 'sep', 'okt', 'nóv', 'des'];
 let editingEventId = null;
 let eventView = 'upcoming';
+let eventTypeFilter = 'all';
+let eventDraftType = 'event';
 let eventTab = 'guests';
 let eventDraftParticipants = [];
 let eventDraftTasks = [];
@@ -2680,8 +2695,24 @@ let eventDraftTimeline = [];
 const filterState = { tasks: 'todo', items: 'todo', timeline: 'todo' };
 
 function initEvents() {
-  document.getElementById('add-event-btn').addEventListener('click', () => openEventModal(null));
-  document.getElementById('events-empty-add-btn').addEventListener('click', () => openEventModal(null));
+  document.getElementById('add-meeting-btn').addEventListener('click', () => openEventModal(null, 'meeting'));
+  document.getElementById('add-event-btn').addEventListener('click', () => openEventModal(null, 'event'));
+  document.getElementById('events-empty-add-btn').addEventListener('click', () => openEventModal(null, 'meeting'));
+
+  document.querySelectorAll('[data-event-type-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      eventTypeFilter = btn.dataset.eventTypeFilter;
+      document.querySelectorAll('[data-event-type-filter]').forEach(b => b.classList.toggle('active', b === btn));
+      renderEvents();
+    });
+  });
+
+  document.querySelectorAll('#event-type-picker [data-event-type]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      eventDraftType = btn.dataset.eventType;
+      applyEventTypeToModal();
+    });
+  });
   document.getElementById('event-form').addEventListener('submit', (e) => {
     e.preventDefault();
     saveEventFromForm();
@@ -3106,10 +3137,11 @@ function populateQuickDeptSelect() {
 
 function updateParticipantHint() { /* kept for compat; UI hint replaced by stat tiles */ }
 
-function openEventModal(id) {
+function openEventModal(id, newType) {
   editingEventId = id;
   const ev = id ? state.events.find(x => x.id === id) : null;
-  document.getElementById('event-modal-title').textContent = ev ? 'Breyta viðburði' : 'Nýr viðburður';
+  eventDraftType = ev?.type || newType || 'event';
+  applyEventTypeToModal();
   document.getElementById('event-title').value = ev?.title || '';
   document.getElementById('event-date').value = ev?.date || '';
   document.getElementById('event-time').value = ev?.time || '';
@@ -3133,6 +3165,32 @@ function openEventModal(id) {
   switchEventTab('basic');
   document.getElementById('event-modal').hidden = false;
   setTimeout(() => document.getElementById('event-title').focus(), 50);
+}
+
+function applyEventTypeToModal() {
+  const isMeeting = eventDraftType === 'meeting';
+  const title = isMeeting ? 'fund' : 'viðburði';
+  const noun = isMeeting ? 'fundur' : 'viðburður';
+  document.getElementById('event-modal-title').textContent =
+    (editingEventId ? 'Breyta ' + title : 'Nýr ' + noun[0].toUpperCase() + noun.slice(1));
+  document.getElementById('event-modal-subtitle').textContent =
+    isMeeting ? 'Vinnufundur — dagsetning, gestir og verkefni' : 'Stærri viðburður — gestir, verkefni, fjárhagsáætlun og dagskrá';
+  document.querySelectorAll('#event-type-picker [data-event-type]').forEach(b => {
+    b.classList.toggle('active', b.dataset.eventType === eventDraftType);
+  });
+  const budgetTab = document.querySelector('[data-event-tab="budget"]');
+  const scheduleTab = document.querySelector('[data-event-tab="schedule"]');
+  if (budgetTab) budgetTab.hidden = isMeeting;
+  if (scheduleTab) scheduleTab.hidden = false; // Both need agenda/dagskrá
+  const modalCard = document.querySelector('#event-modal .modal-card');
+  if (modalCard) {
+    modalCard.classList.toggle('type-meeting', isMeeting);
+    modalCard.classList.toggle('type-event', !isMeeting);
+  }
+  // If we're on a hidden tab, jump back to basic
+  if (isMeeting && document.querySelector('[data-event-panel="budget"]')?.classList.contains('active')) {
+    switchEventTab('basic');
+  }
 }
 
 function deepCloneTasks(tasks) {
@@ -4175,6 +4233,7 @@ function saveEventFromForm() {
   const ev = editingEventId
     ? state.events.find(x => x.id === editingEventId)
     : { id: 'ev_' + Math.random().toString(36).slice(2, 10), created_at: new Date().toISOString() };
+  ev.type = eventDraftType;
   ev.title = title;
   ev.date = date;
   ev.date_iso = iso;
@@ -4206,7 +4265,8 @@ function closeModal(id) {
 function renderEvents() {
   const list = document.getElementById('events-list');
   const empty = document.getElementById('events-empty');
-  const all = (state.events || []).slice();
+  let all = (state.events || []).slice();
+  if (eventTypeFilter !== 'all') all = all.filter(e => (e.type || 'event') === eventTypeFilter);
   const todayIso = new Date().toISOString().slice(0, 10);
   let items;
   if (eventView === 'upcoming') items = all.filter(e => (e.date_iso || '') >= todayIso).sort((a, b) => (a.date_iso + (a.time || '')).localeCompare(b.date_iso + (b.time || '')));
@@ -4284,15 +4344,22 @@ function renderEventCard(ev, todayIso) {
     </div>
   ` : '';
 
+  const type = ev.type || 'event';
+  const typeLabel = type === 'meeting' ? 'Fundur' : 'Viðburður';
+  const typeIcon = type === 'meeting' ? '🤝' : '🎉';
+
   return `
-    <div class="event-card ${past ? 'past' : ''}" data-event-id="${ev.id}">
+    <div class="event-card type-${type} ${past ? 'past' : ''}" data-event-id="${ev.id}">
       <div class="event-date-badge">
         <div class="month">${escapeHtml(month)}</div>
         <div class="day">${day}</div>
         ${ev.time ? `<div class="time">${escapeHtml(ev.time)}</div>` : ''}
       </div>
       <div class="event-body">
-        <div class="event-title">${escapeHtml(ev.title)}</div>
+        <div class="event-title-row">
+          <span class="event-type-badge type-${type}"><span class="event-type-icon">${typeIcon}</span>${typeLabel}</span>
+          <div class="event-title">${escapeHtml(ev.title)}</div>
+        </div>
         ${meta.length ? `<div class="event-meta">${meta.join('')}</div>` : ''}
         ${ev.description ? `<div class="event-description">${escapeHtml(ev.description)}</div>` : ''}
         ${attendanceHtml}

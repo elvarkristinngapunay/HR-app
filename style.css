@@ -1184,6 +1184,110 @@ body { display: flex; flex-direction: column; }
   border-color: rgba(79, 70, 229, 0.25);
 }
 .event-card.past { opacity: 0.65; }
+
+/* Meeting vs. viðburður accent stripe on the left edge */
+.event-card.type-meeting { border-left: 4px solid #0891b2; }
+.event-card.type-event   { border-left: 4px solid #d946ef; }
+.event-card.type-meeting .event-date-badge {
+  background: linear-gradient(180deg, #ecfeff, #cffafe);
+  border-color: rgba(8, 145, 178, 0.25);
+}
+.event-card.type-meeting .event-date-badge .month { color: #0891b2; }
+.event-card.type-event .event-date-badge {
+  background: linear-gradient(180deg, #fdf4ff, #fae8ff);
+  border-color: rgba(217, 70, 239, 0.25);
+}
+.event-card.type-event .event-date-badge .month { color: #a21caf; }
+
+.event-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.event-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.event-type-badge.type-meeting { background: #ecfeff; color: #0e7490; }
+.event-type-badge.type-event   { background: #fdf4ff; color: #a21caf; }
+.event-type-badge .event-type-icon { font-size: 12px; line-height: 1; }
+.event-type-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+.event-type-dot.type-meeting { background: #0891b2; }
+.event-type-dot.type-event   { background: #d946ef; }
+
+/* Header section toggles */
+.event-type-toggle {
+  display: inline-flex;
+  gap: 6px;
+  margin-right: 12px;
+}
+.add-event-group {
+  display: inline-flex;
+  gap: 8px;
+}
+
+/* Modal type picker (Fundur / Viðburður) */
+.event-type-picker {
+  display: inline-flex;
+  gap: 6px;
+  background: var(--surface-2, #f5f5f7);
+  padding: 4px;
+  border-radius: 10px;
+}
+.event-type-pick {
+  border: none;
+  background: transparent;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2, #52525b);
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background .15s, color .15s, box-shadow .15s;
+}
+.event-type-pick:hover { color: var(--text, #18181b); }
+.event-type-pick.active {
+  background: white;
+  color: var(--text, #18181b);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+.event-type-pick[data-event-type="meeting"].active { color: #0e7490; }
+.event-type-pick[data-event-type="event"].active { color: #a21caf; }
+.event-type-pick .event-type-icon { font-size: 15px; }
+
+/* Í dag: colored dot on today items */
+.today-item.type-meeting::before,
+.today-item.type-event::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.today-item.type-meeting::before { background: #0891b2; }
+.today-item.type-event::before   { background: #d946ef; }
 .event-date-badge {
   flex-shrink: 0;
   width: 64px;

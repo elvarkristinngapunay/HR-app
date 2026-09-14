@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Starfsmenn — HR</title>
-<link rel="stylesheet" href="style.css?v=44" />
+<link rel="stylesheet" href="style.css?v=45" />
 </head>
 <body>
   <button type="button" class="sidebar-toggle" id="sidebar-toggle" title="Fela / sýna hliðardálk">
@@ -35,7 +35,7 @@
         </button>
         <button class="sidebar-item" data-section="events">
           <span class="sidebar-icon">📅</span>
-          <span>Viðburðir</span>
+          <span>Fundir &amp; viðburðir</span>
         </button>
         <button class="sidebar-item" data-section="scratch">
           <span class="sidebar-icon">📝</span>
@@ -188,16 +188,24 @@
       <section class="section" id="section-events" hidden>
         <header class="section-header">
           <div>
-            <h2>Viðburðir</h2>
-            <p class="subtle">Fundir, þjálfun, viðburðir starfsfólks</p>
+            <h2>Fundir &amp; viðburðir</h2>
+            <p class="subtle">Vinnufundir og stærri viðburðir starfsfólks</p>
           </div>
           <div class="section-actions">
+            <div class="event-type-toggle">
+              <button class="chip active" data-event-type-filter="all">Allt</button>
+              <button class="chip" data-event-type-filter="meeting"><span class="event-type-dot type-meeting"></span> Fundir</button>
+              <button class="chip" data-event-type-filter="event"><span class="event-type-dot type-event"></span> Viðburðir</button>
+            </div>
             <div class="event-view-toggle">
               <button class="chip active" data-event-view="upcoming">Framundan</button>
               <button class="chip" data-event-view="past">Liðnir</button>
               <button class="chip" data-event-view="all">Allir</button>
             </div>
-            <button class="btn primary" id="add-event-btn">+ Nýr viðburður</button>
+            <div class="add-event-group">
+              <button class="btn primary" id="add-meeting-btn">+ Nýr fundur</button>
+              <button class="btn primary" id="add-event-btn">+ Nýr viðburður</button>
+            </div>
           </div>
         </header>
 
@@ -355,7 +363,17 @@
       <header class="modal-header event-panel-header">
         <div>
           <h2 id="event-modal-title">Nýr viðburður</h2>
-          <p class="subtle">Fylltu inn upplýsingar um viðburðinn</p>
+          <p class="subtle" id="event-modal-subtitle">Fylltu inn upplýsingar</p>
+        </div>
+        <div class="event-type-picker" id="event-type-picker">
+          <button type="button" class="event-type-pick" data-event-type="meeting">
+            <span class="event-type-icon">🤝</span>
+            <span>Fundur</span>
+          </button>
+          <button type="button" class="event-type-pick" data-event-type="event">
+            <span class="event-type-icon">🎉</span>
+            <span>Viðburður</span>
+          </button>
         </div>
         <button class="icon-btn" data-close-modal title="Loka">✕</button>
       </header>
@@ -790,6 +808,6 @@
     </main>
   </div>
 
-  <script src="app.js?v=44"></script>
+  <script src="app.js?v=45"></script>
 </body>
 </html>
