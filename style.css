@@ -2681,6 +2681,57 @@ body { display: flex; flex-direction: column; }
 .chk-share-items li.indent-2 { padding-left: 74px; }
 .chk-share-items li.indent-3 { padding-left: 106px; }
 
+/* Dismiss (×) button on every today-item — hidden until hover */
+.today-item {
+  position: relative;
+  transition: opacity .35s, transform .35s;
+}
+.today-item-dismiss {
+  border: none;
+  background: transparent;
+  color: var(--text-3, #71717a);
+  font-size: 20px;
+  line-height: 1;
+  padding: 4px 10px;
+  margin-left: auto;
+  border-radius: 8px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .15s, background .15s, color .15s;
+  flex-shrink: 0;
+}
+.today-item:hover .today-item-dismiss { opacity: 1; }
+.today-item-dismiss:hover {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+}
+.today-item.dismissing {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(24px);
+}
+.today-item.dismissing::after {
+  content: 'LOKIÐ';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(16, 185, 129, 0.95);
+  color: white;
+  font-weight: 800;
+  letter-spacing: 4px;
+  font-size: 14px;
+  border-radius: inherit;
+  opacity: 1;
+  animation: dismissFlash .45s ease-out forwards;
+}
+@keyframes dismissFlash {
+  0% { opacity: 0; transform: scale(0.9); }
+  40% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.05); }
+}
+
 /* Cloud sync status pill under the brand */
 .cloud-status {
   margin-top: 6px;

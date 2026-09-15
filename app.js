@@ -1927,7 +1927,7 @@ function renderToday() {
       const dept = findDept(e.department_id);
       const color = dept?.color || e.avatar_color;
       return `
-        <li class="today-item" data-nav="drawer" data-emp-id="${e.id}">
+        <li class="today-item" data-nav="drawer" data-emp-id="${e.id}" data-hide-id="bday_${e.id}">
           <span class="today-item-time no-time">🎉</span>
           <span class="today-item-avatar" style="background:${color}">${initials(e.name)}</span>
           <span class="today-item-title">${escapeHtml(e.name)}</span>
@@ -1963,7 +1963,7 @@ function renderToday() {
         else if (daysAway < 7) dateLabel = daysAway + ' dagar';
         else dateLabel = `${x.bd.getDate()}. ${MONTHS_IS[x.bd.getMonth()]}`;
         return `
-          <li class="today-item ${past ? 'today-item-past' : ''}" data-nav="drawer" data-emp-id="${x.emp.id}">
+          <li class="today-item ${past ? 'today-item-past' : ''}" data-nav="drawer" data-emp-id="${x.emp.id}" data-hide-id="bdaym_${x.emp.id}">
             <span class="today-item-time ${past ? 'past' : ''}">${escapeHtml(dateLabel)}</span>
             <span class="today-item-avatar" style="background:${color}">${initials(x.emp.name)}</span>
             <span class="today-item-title">${escapeHtml(x.emp.name)}</span>
@@ -1979,7 +1979,7 @@ function renderToday() {
   const meetingsToday = allToday.filter(e => (e.type || 'event') === 'meeting');
   const eventsToday = allToday.filter(e => (e.type || 'event') === 'event');
   const renderDayItem = (ev) => `
-        <li class="today-item type-${ev.type || 'event'}" data-nav="event" data-event-id="${ev.id}">
+        <li class="today-item type-${ev.type || 'event'}" data-nav="event" data-event-id="${ev.id}" data-hide-id="event_${ev.id}">
           <span class="today-item-time ${ev.time && ev.time < now.toTimeString().slice(0, 5) ? 'past' : ''}">${ev.time || '—'}</span>
           <span class="today-item-title">${escapeHtml(ev.title)}</span>
           <span class="today-item-meta">${ev.location ? '📍 ' + escapeHtml(ev.location) : ''}</span>
@@ -2015,7 +2015,7 @@ function renderToday() {
         const overdue = x.dueIso < todayIso;
         const assignee = x.task.assignee_id ? findEmp(x.task.assignee_id) : null;
         return `
-          <li class="today-item" data-nav="event" data-event-id="${x.ev.id}">
+          <li class="today-item" data-nav="event" data-event-id="${x.ev.id}" data-hide-id="task_${x.ev.id}_${x.task.id}">
             <span class="today-item-time ${overdue ? 'past' : ''}">${x.dueIso === todayIso ? 'í dag' : x.task.due_date}</span>
             <span class="today-item-title">${escapeHtml(x.task.title)}</span>
             <span class="today-item-meta">${escapeHtml(x.ev.title)}${assignee ? ' · ' + escapeHtml(assignee.name.split(' ')[0]) : ''}</span>
@@ -2051,7 +2051,7 @@ function renderToday() {
     itemsToday.sort((a, b) => (a.item.pickup_time || '').localeCompare(b.item.pickup_time || ''));
     blocks.push(todayBlock('🛒', 'Þarf að sækja / afhent í dag', itemsToday.length, false,
       itemsToday.map(x => `
-        <li class="today-item" data-nav="event" data-event-id="${x.ev.id}">
+        <li class="today-item" data-nav="event" data-event-id="${x.ev.id}" data-hide-id="party_${x.item.id}">
           <span class="today-item-time ${x.item.pickup_time || 'no-time'}">${x.item.pickup_time || '—'}</span>
           <span class="today-item-title">${escapeHtml(x.item.name)}</span>
           <span class="today-item-meta">${x.item.pickup_type === 'pickup' ? '🛒 Ná í' : '🚚 Til mín'}${x.item.pickup_location ? ' · ' + escapeHtml(x.item.pickup_location) : ''} · ${escapeHtml(x.ev.title)}</span>
@@ -2078,7 +2078,7 @@ function renderToday() {
     scheduleToday.sort((a, b) => (a.item.time || '').localeCompare(b.item.time || ''));
     blocks.push(todayBlock('🕐', 'Dagskrá í dag', scheduleToday.length, false,
       scheduleToday.map(x => `
-        <li class="today-item" data-nav="event" data-event-id="${x.ev.id}">
+        <li class="today-item" data-nav="event" data-event-id="${x.ev.id}" data-hide-id="sched_${x.ev.id}_${x.item.id}">
           <span class="today-item-time">${x.item.time || '—'}</span>
           <span class="today-item-title ${x.item.done ? 'done' : ''}">${escapeHtml(x.item.title)}</span>
           <span class="today-item-meta">${escapeHtml(x.ev.title)}</span>
@@ -2104,7 +2104,7 @@ function renderToday() {
         const at = new Date(x.kind === 'event' ? x.sn.event_at : x.sn.remind_at);
         const time = `${String(at.getHours()).padStart(2,'0')}:${String(at.getMinutes()).padStart(2,'0')}`;
         return `
-          <li class="today-item" data-nav="scratch" data-scratch-id="${x.sn.id}">
+          <li class="today-item" data-nav="scratch" data-scratch-id="${x.sn.id}" data-hide-id="rem_${x.sn.id}_${x.kind}">
             <span class="today-item-time">${time}</span>
             <span class="today-item-title">${escapeHtml(x.sn.title || x.sn.body.slice(0, 60))}</span>
             <span class="today-item-meta">${x.kind === 'event' ? 'Skjal · dagsetning' : 'Skjal · minna á'}</span>
@@ -2137,7 +2137,7 @@ function renderToday() {
         const dept = findDept(x.emp.department_id);
         const color = dept?.color || x.emp.avatar_color;
         return `
-          <li class="today-item" data-nav="training" data-emp-id="${x.emp.id}" data-assignment-id="${x.a.id}">
+          <li class="today-item" data-nav="training" data-emp-id="${x.emp.id}" data-assignment-id="${x.a.id}" data-hide-id="train_${x.a.id}">
             <span class="today-item-time ${overdue ? 'past' : ''}">${x.a.deadline}</span>
             <span class="today-item-avatar" style="background:${color}">${initials(x.emp.name)}</span>
             <span class="today-item-title">${escapeHtml(x.emp.name)}</span>
@@ -2169,6 +2169,49 @@ function renderToday() {
   }
 
   wrap.innerHTML = `<div class="today-wrap">${blocks.join('')}</div>`;
+
+  // Hide any item the user has already dismissed today
+  wrap.querySelectorAll('.today-item[data-hide-id]').forEach(li => {
+    if (isTodayHidden(li.dataset.hideId, todayIso)) li.remove();
+  });
+  // Blocks with no rows left after filtering are useless — drop them
+  wrap.querySelectorAll('.today-block').forEach(block => {
+    const ul = block.querySelector('ul');
+    if (!ul || !ul.children.length) block.remove();
+    else {
+      const count = block.querySelector('.today-block-count');
+      if (count) count.textContent = ul.children.length;
+    }
+  });
+  // Attach a × dismiss button to every remaining row
+  wrap.querySelectorAll('.today-item[data-hide-id]').forEach(li => {
+    if (li.querySelector('.today-item-dismiss')) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'today-item-dismiss';
+    btn.title = 'Merkja lokið';
+    btn.textContent = '×';
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const hideId = li.dataset.hideId;
+      li.classList.add('dismissing');
+      setTimeout(() => hideTodayItem(hideId, todayIso), 450);
+    });
+    li.appendChild(btn);
+  });
+  // If everything got filtered out, show the empty state
+  if (!wrap.querySelector('.today-block')) {
+    wrap.innerHTML = `
+      <div class="today-wrap">
+        <div class="today-empty">
+          <div class="icon">☕</div>
+          <h3>Ekkert á dagskrá í dag eða á næstunni</h3>
+          <p>Njóttu dagsins — engir viðburðir, verkefni eða áminningar.</p>
+        </div>
+      </div>
+    `;
+    return;
+  }
 
   // Wire quick action buttons first (so they don't bubble to nav)
   wrap.querySelectorAll('[data-quick]').forEach(btn => {
@@ -2411,8 +2454,10 @@ function buildUpcomingBlock(now, todayIso) {
       ? `<span class="today-item-avatar" style="background:${x.color}">${initials(x.title)}</span>`
       : `<span class="today-item-time no-time" style="min-width:24px;">${x.icon}</span>`;
     const typeClass = x.eventType ? ' type-' + x.eventType : '';
+    const entityId = x.nav.event_id || x.nav.emp_id || x.nav.scratch_id || x.nav.assignment_id || '';
+    const hideId = `upc_${type}_${entityId}`;
     return `
-      <li class="today-item${typeClass}" data-nav="${type}" ${nav}>
+      <li class="today-item${typeClass}" data-nav="${type}" ${nav} data-hide-id="${hideId}">
         <span class="today-item-time">${escapeHtml(dateLabel)}</span>
         ${avatarHtml}
         <span class="today-item-title">${escapeHtml(x.title)}</span>
