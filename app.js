@@ -653,7 +653,32 @@ function renderNode(emp, query, matchedIds) {
   if (kids.length) {
     const wrap = document.createElement('div');
     wrap.className = 'node-children';
-    kids.forEach(c => wrap.appendChild(renderNode(c, query, matchedIds)));
+    // Walk siblings and group runs that share a department so each
+    // run can wear a big faded dept name as a backdrop. Single-child
+    // runs and un-departmented kids render bare — the backdrop only
+    // appears where it's actually telling the truth.
+    let i = 0;
+    while (i < kids.length) {
+      const d = kids[i].department_id || null;
+      let j = i;
+      while (j < kids.length && (kids[j].department_id || null) === d) j++;
+      const run = kids.slice(i, j);
+      i = j;
+      if (d && run.length >= 2) {
+        const dept = findDept(d);
+        const cluster = document.createElement('div');
+        cluster.className = 'dept-cluster';
+        cluster.style.setProperty('--dept-color', dept?.color || '#94a3b8');
+        const bg = document.createElement('div');
+        bg.className = 'dept-cluster-bg';
+        bg.textContent = dept?.name || '';
+        cluster.appendChild(bg);
+        run.forEach(c => cluster.appendChild(renderNode(c, query, matchedIds)));
+        wrap.appendChild(cluster);
+      } else {
+        run.forEach(c => wrap.appendChild(renderNode(c, query, matchedIds)));
+      }
+    }
     group.appendChild(wrap);
   }
   return group;

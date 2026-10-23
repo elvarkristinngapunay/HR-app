@@ -343,6 +343,50 @@ body { display: flex; flex-direction: column; }
   top: -14px;
 }
 
+/* Dept cluster in the tree — same flex row as .node-children so the
+   parent/sibling connectors keep working, with a big dept name sitting
+   above the cards like a chapter header. */
+.node-children .dept-cluster {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 46px 10px 0;
+}
+.dept-cluster-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  color: var(--dept-color, #94a3b8);
+  opacity: 0.55;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 10px;
+}
+.node-children .dept-cluster > .node-group { position: relative; z-index: 1; }
+/* Vertical stub on children inside a dept cluster — reach the parent
+   horizontal line that lives at the top of .node-children. */
+.node-group .node-children > .dept-cluster > .node-group::before {
+  content: "";
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  width: 1.5px; height: 36px;
+  background: rgba(148, 163, 184, 0.4);
+  transform: translateX(-50%);
+  border-radius: 2px;
+  z-index: 1;
+}
+
 /* Employee card */
 .card {
   background: white;
