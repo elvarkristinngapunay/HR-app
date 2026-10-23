@@ -543,12 +543,6 @@ function renderPeopleList() {
       return hay.includes(query);
     });
   }
-  list.sort((a, b) => {
-    const da = deptName(a.department_id) || '￿';
-    const db = deptName(b.department_id) || '￿';
-    if (da !== db) return da.localeCompare(db, 'is');
-    return (a.name || '').localeCompare(b.name || '', 'is');
-  });
 
   if (!list.length) {
     body.innerHTML = '';
@@ -557,22 +551,50 @@ function renderPeopleList() {
   }
   empty.hidden = true;
 
-  body.innerHTML = list.map(e => {
-    const dept = findDept(e.department_id);
-    const dotColor = dept?.color || 'var(--text-3)';
-    const rightBits = [];
-    if (e.role) rightBits.push(escapeHtml(e.role));
-    if (dept) rightBits.push(escapeHtml(dept.name));
+  // Group by department so each one gets its own big-title section.
+  const byDept = new Map();
+  list.forEach(e => {
+    const key = e.department_id || '__none__';
+    if (!byDept.has(key)) byDept.set(key, []);
+    byDept.get(key).push(e);
+  });
+  // Sort departments by name (Icelandic), then members by name within.
+  const deptKeys = [...byDept.keys()].sort((a, b) => {
+    const da = a === '__none__' ? '￿' : deptName(a) || '';
+    const db = b === '__none__' ? '￿' : deptName(b) || '';
+    return da.localeCompare(db, 'is');
+  });
+  deptKeys.forEach(k => byDept.get(k).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'is')));
+
+  body.innerHTML = deptKeys.map(k => {
+    const dept = k === '__none__' ? null : findDept(k);
+    const color = dept?.color || '#94a3b8';
+    const name = dept?.name || 'Án deildar';
+    const members = byDept.get(k);
+    const rows = members.map(e => {
+      const rightBits = [];
+      if (e.role) rightBits.push(escapeHtml(e.role));
+      return `
+        <li class="people-line" data-emp-id="${e.id}">
+          <span class="people-line-dot" style="background:${color}"></span>
+          <span class="people-line-name">${escapeHtml(e.name || 'Nafnlaust')}</span>
+          <span class="people-line-meta">${rightBits.join(' · ')}</span>
+        </li>
+      `;
+    }).join('');
     return `
-      <li class="people-line" data-emp-id="${e.id}">
-        <span class="people-line-dot" style="background:${dotColor}"></span>
-        <span class="people-line-name">${escapeHtml(e.name || 'Nafnlaust')}</span>
-        <span class="people-line-meta">${rightBits.join(' · ')}</span>
+      <li class="dept-section">
+        <div class="dept-section-watermark" style="color:${color}">${escapeHtml(name)}</div>
+        <div class="dept-section-head">
+          <h3 class="dept-section-title" style="color:${color}">${escapeHtml(name)}</h3>
+          <span class="dept-section-count">${members.length} ${members.length === 1 ? 'starfsmaður' : 'starfsmenn'}</span>
+        </div>
+        <ul class="dept-section-rows">${rows}</ul>
       </li>
     `;
   }).join('');
 
-  body.querySelectorAll('li').forEach(row => {
+  body.querySelectorAll('.people-line').forEach(row => {
     row.addEventListener('click', () => openDrawer(row.dataset.empId));
   });
 }

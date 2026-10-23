@@ -2681,6 +2681,57 @@ body { display: flex; flex-direction: column; }
 .chk-share-items li.indent-2 { padding-left: 74px; }
 .chk-share-items li.indent-3 { padding-left: 106px; }
 
+/* Dept section (list view) — big faded department title as backdrop */
+.people-simple-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 20px; }
+.dept-section {
+  position: relative;
+  background: var(--surface, white);
+  border: 0.5px solid var(--border, rgba(0,0,0,0.08));
+  border-radius: 14px;
+  padding: 18px 22px 14px;
+  overflow: hidden;
+}
+.dept-section-watermark {
+  position: absolute;
+  top: 50%;
+  left: 16px;
+  transform: translateY(-50%);
+  font-size: 68px;
+  font-weight: 600;
+  letter-spacing: -1.5px;
+  line-height: 0.9;
+  opacity: 0.09;
+  pointer-events: none;
+  white-space: nowrap;
+  max-width: calc(100% - 32px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dept-section-head {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.dept-section-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.2px;
+}
+.dept-section-count {
+  font-size: 12px;
+  color: var(--text-3, #71717a);
+  background: var(--surface-2, #f5f5f7);
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+.dept-section-rows { list-style: none; margin: 0; padding: 0; position: relative; display: flex; flex-direction: column; }
+.dept-section-rows .people-line { padding: 8px 0; border-top: 0.5px solid var(--border, rgba(0,0,0,0.06)); }
+.dept-section-rows .people-line:first-child { border-top: none; }
+
 /* Dismiss (×) button on every today-item — hidden until hover */
 .today-item {
   position: relative;
